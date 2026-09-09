@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+node_modules/
+dist/
+.env
+.env.local
+*.log
+backend/artifacts/*.joblib
+backend/artifacts/*.json
+backend/data/*.parquet
+backend/data/*.csv
+.DS_Store

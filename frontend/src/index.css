@@ -1,0 +1,229 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------
+   Design tokens.
+
+   The palette is deliberately narrow: a near-black ground, one hot
+   colour for extraction and one cool colour for safety. Risk numbers
+   should read instantly without a legend, so hue does the work that a
+   label would otherwise have to.
+   ------------------------------------------------------------------ */
+
+@theme {
+  --color-void: #07080a;
+  --color-ground: #0b0d10;
+  --color-surface: #101318;
+  --color-raised: #161a21;
+  --color-line: #1e232c;
+  --color-line-bright: #2b323d;
+
+  --color-ink: #e8eaef;
+  --color-ink-dim: #9aa2b1;
+  --color-ink-faint: #626b7a;
+
+  --color-hot: #ff5c33;
+  --color-hot-dim: #a13315;
+  --color-warn: #f5a524;
+  --color-cool: #2ee6a8;
+  --color-cool-dim: #12876a;
+  --color-info: #5b8dff;
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  /* `clip` rather than `hidden`: hidden turns body into a scroll container,
+     which silently breaks position:sticky on the header. */
+  overflow-x: clip;
+}
+
+/* Fine grid + grain over the whole page. Keeps large dark areas from
+   reading as flat empty space without adding visual noise at text size. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 100% 60% at 50% 0%, #000 30%, transparent 78%);
+}
+
+/* --- numerals -------------------------------------------------- */
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+/* --- surfaces --------------------------------------------------- */
+
+.panel {
+  background: linear-gradient(180deg, rgba(22, 26, 33, 0.9), rgba(16, 19, 24, 0.9));
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  position: relative;
+}
+
+.panel-flush {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+}
+
+/* Hairline highlight along the top edge, the way physical panels catch light */
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
+  border-radius: 14px 14px 0 0;
+}
+
+/* --- risk colour ramp ------------------------------------------- */
+
+.risk-minimal { color: var(--color-cool); }
+.risk-low     { color: #7ddba4; }
+.risk-elevated{ color: var(--color-warn); }
+.risk-high    { color: #ff8a4c; }
+.risk-severe  { color: var(--color-hot); }
+
+.bg-risk-minimal { background-color: color-mix(in srgb, var(--color-cool) 14%, transparent); }
+.bg-risk-low     { background-color: color-mix(in srgb, #7ddba4 14%, transparent); }
+.bg-risk-elevated{ background-color: color-mix(in srgb, var(--color-warn) 14%, transparent); }
+.bg-risk-high    { background-color: color-mix(in srgb, #ff8a4c 14%, transparent); }
+.bg-risk-severe  { background-color: color-mix(in srgb, var(--color-hot) 16%, transparent); }
+
+/* --- controls ---------------------------------------------------- */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-line-bright);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  border: 3px solid var(--color-ground);
+  box-shadow: 0 0 0 1px var(--color-line-bright);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  border: 3px solid var(--color-ground);
+  cursor: pointer;
+}
+
+input[type="number"],
+input[type="text"],
+select {
+  font-family: var(--font-mono);
+  background: var(--color-void);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  color: var(--color-ink);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.875rem;
+  width: 100%;
+  transition: border-color 0.15s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--color-line-bright);
+}
+
+select option {
+  background: var(--color-ground);
+}
+
+/* --- motion ------------------------------------------------------ */
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.rise {
+  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from { stroke-dashoffset: var(--dash); }
+  to   { stroke-dashoffset: 0; }
+}
+
+.sweep {
+  animation: sweep 1.1s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .pulse-dot, .sweep { animation: none; }
+  html { scroll-behavior: auto; }
+}
+
+/* --- scrollbar ---------------------------------------------------- */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--color-void); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-line-bright);
+  border-radius: 5px;
+  border: 3px solid var(--color-void);
+}
+::-webkit-scrollbar-thumb:hover { background: #3a424f; }
