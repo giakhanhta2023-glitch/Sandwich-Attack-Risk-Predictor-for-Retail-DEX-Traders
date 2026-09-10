@@ -163,6 +163,8 @@ def info() -> dict[str, Any] | None:
         "trained_at": model.get("trained_at"),
         "rows": model.get("rows"),
         "positives": model.get("positives"),
+        "victim_pools": model.get("victim_pools"),
+        "top_pool_share": model.get("top_pool_share"),
         "weighted_swaps": model.get("weighted_swaps"),
         "base_rate": model.get("base_rate"),
         "window": model.get("window"),

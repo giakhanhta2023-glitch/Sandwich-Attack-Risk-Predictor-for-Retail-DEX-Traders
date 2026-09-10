@@ -499,7 +499,7 @@ function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string })
       {risk.source === 'live-mainnet' && live ? (
         <>
           <span className="text-cool">Learned from Solana mainnet:</span>{' '}
-          <span className="num">{live.positives.toLocaleString()}</span> real attacks in ~
+          <span className="num">{live.positives.toLocaleString()}</span> real victims in ~
           <span className="num">{live.weighted_swaps.toLocaleString()}</span> swaps.
         </>
       ) : chain !== 'solana' ? (
@@ -507,10 +507,10 @@ function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string })
       ) : live ? (
         <>
           {base} The mainnet model reads <span className="num">{(live.p_attack * 100).toFixed(1)}%</span> but
-          is still training (<span className="num">{live.positives}</span> real attacks so far).
+          is still training (<span className="num">{live.positives}</span> real victims so far).
         </>
       ) : (
-        `${base} A model trained on live mainnet data takes over once it has seen enough real attacks.`
+        `${base} A model trained on live mainnet data takes over once it has seen enough real victims.`
       )}
       {chain === 'solana' && (
         <>

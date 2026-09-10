@@ -31,6 +31,8 @@ def _artifact(**overrides):
         "trained_at": "2026-09-10T00:00:00+00:00",
         "rows": 5000,
         "positives": 250,
+        "victim_pools": 40,
+        "top_pool_share": 0.12,
         "weighted_swaps": 120000,
         "base_rate": 0.002,
         "window": {"start": "2026-09-09T00:00:00+00:00", "end": "2026-09-10T00:00:00+00:00"},
@@ -140,6 +142,7 @@ def _synthetic_flow(n=600, seed=7):
             "hour_utc": rng.randrange(24), "quote_symbol": rng.choice(["SOL", "USDC"]),
             "is_victim": victim, "sample_weight": 1 if victim else 50,
             "created_at": f"2026-09-10T{i // 60:02d}:{i % 60:02d}:00+00:00",
+            "pool_key": f"pool-{rng.randrange(40)}",
         })
     return rows
 
@@ -159,7 +162,10 @@ def test_what_the_trainer_writes_is_what_the_server_reads(tmp_path, monkeypatch)
     assert "roc_auc" in result["metrics"]
 
     live_model.load.cache_clear()
-    assert live_model.info()["positives"] == result["positives"]
+    info = live_model.info()
+    assert info["positives"] == result["positives"]
+    assert info["victim_pools"] == result["victim_pools"] > 1
+    assert 0 < info["top_pool_share"] <= 1
     assert live_model.predict(5_000, 20_000) > live_model.predict(20, 5_000_000)
 
 
@@ -211,7 +217,16 @@ def test_an_established_live_model_sets_the_solana_headline(serve, client):
 
 @pytest.mark.parametrize(
     "overrides, shortfall",
-    [({"positives": 40}, "40 victims"), ({"metrics": {"roc_auc": 0.52}}, "AUC 0.52"), ({"metrics": {}}, "not yet")],
+    [
+        ({"positives": 40}, "40 of 100 real victims"),
+        ({"metrics": {"roc_auc": 0.52}}, "(has 0.52)"),
+        ({"metrics": {}}, "not yet measurable"),
+        # one bot working one favourite pool must not speak for every pool
+        ({"victim_pools": 8}, "20 pools (has 8)"),
+        ({"top_pool_share": 0.5}, "top has 50%"),
+        # an artifact from before spread was recorded counts as concentrated
+        ({"victim_pools": None, "top_pool_share": None}, "20 pools (has 0)"),
+    ],
 )
 def test_an_unproven_live_model_is_shown_but_does_not_decide(serve, client, overrides, shortfall):
     serve(_artifact(**overrides))

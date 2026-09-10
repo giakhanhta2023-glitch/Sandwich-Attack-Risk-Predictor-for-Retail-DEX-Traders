@@ -134,8 +134,12 @@ scikit-learn. A scheduled GitHub Action retrains every six hours and commits the
 artifact once there is enough data (300 rows and 30 victims).
 
 **Taking over.** For Solana pools the mainnet model sets the headline probability once
-it has seen 100 real victims and scores an AUC of at least 0.6 on its holdout. Until then
-the analyser shows its figure next to the simulator's, marked as still training.
+it has seen 100 real victims spread over at least 20 pools, with no pool supplying more
+than a third of them, and scores an AUC of at least 0.6 on its holdout. The spread rule
+exists because bots work favourite pools in bursts: in the first hour, one memecoin pool
+supplied 41% of all victims, and one bot's pool should not speak for every pool. Until
+then the analyser shows the model's figure next to the simulator's, marked as still
+training.
 Slippage tolerance is invisible on-chain, so the model estimates risk at the tolerances
 real traders actually use; the closed-form economics carry that across the slippage sweep.
 
@@ -317,7 +321,7 @@ frontend/
   src/lib/live.ts       read-only Supabase queries behind the /live dashboard
   src/lib/router.tsx    path routing for /live, /terms and /privacy
   src/lib/utils.ts      cn() class merger
-tests/                  68 tests over the invariants, detector, optimiser, live model and API
+tests/                  71 tests over the invariants, detector, optimiser, live model and API
 ```
 
 ## Tech stack

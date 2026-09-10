@@ -227,10 +227,13 @@ def methodology() -> dict[str, Any]:
 
 
 # The model trained on live Solana flow only sets the headline probability once
-# it has seen enough real victims and scores well on a chronological holdout.
-# Below that it is reported next to the simulator's figure as provisional.
+# it has seen enough real victims, spread over enough pools that no one bot's
+# favourite pool defines it, and scores well on a chronological holdout. Below
+# that it is reported next to the simulator's figure as provisional.
 LIVE_MIN_POSITIVES = 100
 LIVE_MIN_AUC = 0.6
+LIVE_MIN_VICTIM_POOLS = 20
+LIVE_MAX_TOP_POOL_SHARE = 1 / 3
 
 
 def _pool_quote(pool: dict[str, Any]) -> str:
@@ -263,7 +266,21 @@ def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) 
         return None
     auc = (info.get("metrics") or {}).get("roc_auc")
     positives = int(info.get("positives") or 0)
-    drives = positives >= LIVE_MIN_POSITIVES and auc is not None and auc >= LIVE_MIN_AUC
+    # An artifact from before these were recorded counts as concentrated.
+    victim_pools = int(info.get("victim_pools") or 0)
+    top_share = float(info.get("top_pool_share") or 1.0)
+
+    shortfalls = []
+    if positives < LIVE_MIN_POSITIVES:
+        shortfalls.append(f"{positives} of {LIVE_MIN_POSITIVES} real victims")
+    if auc is None:
+        shortfalls.append("a holdout AUC (not yet measurable)")
+    elif auc < LIVE_MIN_AUC:
+        shortfalls.append(f"a holdout AUC of {LIVE_MIN_AUC} (has {auc})")
+    if victim_pools < LIVE_MIN_VICTIM_POOLS:
+        shortfalls.append(f"victims in {LIVE_MIN_VICTIM_POOLS} pools (has {victim_pools})")
+    if top_share > LIVE_MAX_TOP_POOL_SHARE:
+        shortfalls.append(f"no pool above {LIVE_MAX_TOP_POOL_SHARE:.0%} of victims (top has {top_share:.0%})")
     return {
         "p_attack": round(p, 6),
         "rows": info.get("rows"),
@@ -272,11 +289,10 @@ def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) 
         "trained_at": info.get("trained_at"),
         "window_end": (info.get("window") or {}).get("end"),
         "roc_auc": auc,
-        "drives_headline": drives,
-        "why_provisional": None if drives else (
-            f"needs {LIVE_MIN_POSITIVES} real victims and a holdout AUC of at least {LIVE_MIN_AUC} "
-            f"(has {positives} victims, AUC {auc if auc is not None else 'not yet measurable'})"
-        ),
+        "victim_pools": victim_pools,
+        "top_pool_share": top_share,
+        "drives_headline": not shortfalls,
+        "why_provisional": "needs " + "; ".join(shortfalls) if shortfalls else None,
     }
 
 

@@ -8,8 +8,8 @@ population rather than the sample.
 The model is a logistic regression on seven observable features, and that is a
 deliberate choice rather than a placeholder:
 
-  * positives arrive at roughly one per scan, so a flexible model would overfit
-    long before there is enough data to justify it;
+  * positives arrive at a few per scan at best, and in bursts, so a flexible
+    model would overfit long before there is enough data to justify it;
   * the exported JSON is served as plain arithmetic (see `live_model`), so the
     model trained on real flow runs on the serverless deployment too.
 
@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections import Counter
 from datetime import datetime, timezone
 from typing import Any
 
@@ -41,7 +42,7 @@ MIN_ROWS = 300
 HOLDOUT_FRACTION = 0.2
 PAGE = 1000
 
-COLUMNS = "quote_usd,pool_depth_usd,side,hour_utc,quote_symbol,is_victim,sample_weight,created_at"
+COLUMNS = "quote_usd,pool_depth_usd,side,hour_utc,quote_symbol,is_victim,sample_weight,created_at,pool_key"
 
 
 def fetch_samples() -> list[dict[str, Any]]:
@@ -82,7 +83,7 @@ def _weighted_moments(x: np.ndarray, w: np.ndarray) -> tuple[np.ndarray, np.ndar
 
 def train(verbose: bool = True) -> dict[str, Any]:
     raw = fetch_samples()
-    x_rows, y, w, stamps = [], [], [], []
+    x_rows, y, w, stamps, pools = [], [], [], [], []
     for r in raw:
         f = featurize(float(r["quote_usd"]), float(r["pool_depth_usd"]), r["side"],
                       r.get("hour_utc") or 0, r["quote_symbol"])
@@ -92,6 +93,7 @@ def train(verbose: bool = True) -> dict[str, Any]:
         y.append(1 if r["is_victim"] else 0)
         w.append(float(r["sample_weight"]))
         stamps.append(r["created_at"])
+        pools.append(r.get("pool_key"))
 
     positives = int(sum(y))
     status = {
@@ -131,6 +133,13 @@ def train(verbose: bool = True) -> dict[str, Any]:
     model = LogisticRegression(C=1.0, max_iter=2000)
     model.fit((x - mean) / scale, y_arr, sample_weight=w_arr)
 
+    # How widely the attacks are spread. Bots work favourite pools in bursts, and
+    # a model learned mostly from one pool should not speak for every pool; the
+    # server reads these before letting the model set the headline.
+    per_pool = Counter(pool for pool, label in zip(pools, y) if label)
+    victim_pools = len(per_pool)
+    top_pool_share = round(max(per_pool.values()) / positives, 4)
+
     weighted_swaps = float(w_arr.sum())
     artifact = {
         "kind": "logistic",
@@ -143,6 +152,8 @@ def train(verbose: bool = True) -> dict[str, Any]:
         "data_source": "chain",
         "rows": len(x),
         "positives": positives,
+        "victim_pools": victim_pools,
+        "top_pool_share": top_pool_share,
         "weighted_swaps": round(weighted_swaps),
         "base_rate": round(positives / weighted_swaps, 6) if weighted_swaps else 0.0,
         "window": {"start": stamps[0], "end": stamps[-1]},
@@ -167,11 +178,13 @@ def train(verbose: bool = True) -> dict[str, Any]:
         pass  # recording the run is telemetry; it must not fail training
 
     if verbose:
-        print(f"trained on {len(x):,} real swaps ({positives} victims, ~{weighted_swaps:,.0f} swaps weighted), "
+        print(f"trained on {len(x):,} real swaps ({positives} victims in {victim_pools} pools, "
+              f"top pool {top_pool_share:.0%}; ~{weighted_swaps:,.0f} swaps weighted), "
               f"window {stamps[0][:16]} -> {stamps[-1][:16]}")
         print("holdout:", metrics)
         print("coefficients:", dict(zip(FEATURES, artifact["coef"])))
-    return {"trained": True, **status, "metrics": metrics}
+    return {"trained": True, **status, "victim_pools": victim_pools,
+            "top_pool_share": top_pool_share, "metrics": metrics}
 
 
 if __name__ == "__main__":
