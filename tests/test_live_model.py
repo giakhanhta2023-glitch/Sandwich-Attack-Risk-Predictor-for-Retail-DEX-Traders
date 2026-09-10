@@ -236,3 +236,25 @@ def test_without_a_live_model_the_simulator_stays_in_charge(serve, client):
     body = _analyze(client, _pool_id(client, "solana"))
     assert body["risk"]["live_market"] is None
     assert body["risk"]["source"] in {"trained", "fallback"}
+
+
+# --- measured corpus -------------------------------------------------------
+
+
+def test_the_corpus_switches_to_chain_data_without_a_restart(monkeypatch):
+    from types import SimpleNamespace
+
+    from backend.core import pools
+
+    clock = SimpleNamespace(now=1_000.0)
+    answers = [None, {"available": True, "data_source": "chain"}]
+    monkeypatch.setattr(pools, "time", SimpleNamespace(monotonic=lambda: clock.now))
+    monkeypatch.setattr(pools, "_chain_corpus_stats", lambda: answers.pop(0))
+    monkeypatch.setattr(pools, "_measured", None)
+
+    assert pools.corpus_stats()["data_source"] != "chain"  # too little live data yet
+    clock.now += 60
+    assert pools.corpus_stats()["data_source"] != "chain"  # cached: no query per request
+    clock.now += pools.MEASURED_TTL_SECONDS
+    assert pools.corpus_stats()["data_source"] == "chain"  # re-read, no restart needed
+    assert answers == []

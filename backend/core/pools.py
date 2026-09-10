@@ -14,6 +14,7 @@ that sharing one set of constants would make both wrong.
 from __future__ import annotations
 
 import math
+import time
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -246,22 +247,38 @@ def _chain_corpus_stats() -> dict[str, Any] | None:
         ],
     }
 
-@lru_cache(maxsize=1)
+
+# The measured corpus moves every minute while the simulated one never does, so
+# the measured side is re-read every few minutes rather than once per process: a
+# warm server would otherwise keep showing the simulator long after chain data
+# had overtaken it.
+MEASURED_TTL_SECONDS = 300
+_measured: tuple[float, dict[str, Any] | None] | None = None
+
+
 def corpus_stats() -> dict[str, Any]:
-    """Attack rates and loss distributions over the training corpus.
+    """Attack rates and loss distributions for the dashboard.
+
+    Measured chain data wins over the simulator as soon as there is enough of it
+    to say anything: a handful of rows would produce a noisier picture than the
+    corpus it replaced.
+    """
+    global _measured
+    now = time.monotonic()
+    if _measured is None or now - _measured[0] > MEASURED_TTL_SECONDS:
+        _measured = (now, _chain_corpus_stats())
+    return _measured[1] or _simulated_corpus_stats()
+
+
+@lru_cache(maxsize=1)
+def _simulated_corpus_stats() -> dict[str, Any]:
+    """Aggregates over the simulated training corpus.
 
     Read from the persisted training frame so the dashboard shows the same data
     the model was fit on, rather than a second simulation that would quietly
     disagree with it.
     """
     from ..app.config import DATA_DIR
-
-    # Measured chain data wins over the simulator as soon as there is enough of
-    # it to say anything: a handful of rows would produce a noisier picture than
-    # the corpus it replaced.
-    measured = _chain_corpus_stats()
-    if measured is not None:
-        return measured
 
     # A precomputed summary is what ships to production: it is ~5KB against the
     # corpus's 13MB, and reading it needs neither pandas nor pyarrow, which

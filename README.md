@@ -317,7 +317,7 @@ frontend/
   src/lib/live.ts       read-only Supabase queries behind the /live dashboard
   src/lib/router.tsx    path routing for /live, /terms and /privacy
   src/lib/utils.ts      cn() class merger
-tests/                  67 tests over the invariants, detector, optimiser, live model and API
+tests/                  68 tests over the invariants, detector, optimiser, live model and API
 ```
 
 ## Tech stack
