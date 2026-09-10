@@ -98,6 +98,32 @@ market risk for the duration, both of which are charged in the objective.
 
 ---
 
+## Design rules
+
+The interface is a trading surface, not a landing page, and the CSS layer
+enforces that rather than leaving it to discipline:
+
+- **Separation is a 1px border.** No shadow, gradient, blur or raised card.
+  Hierarchy comes from the border plus the fill step between `#000000` and
+  `#0c0c0e`.
+- **Two functional hues.** Emerald `#10b981` for safe/optimal, crimson
+  `#ef4444` for risk/loss, carried on the numeral or a 2px inset rule — never
+  as a tint behind a figure, which only makes the figure harder to read.
+  A chart's second series is neutral grey so red always and only means MEV.
+- **Every figure is monospaced** and tabular, with slashed zero, so digits align
+  down a column. That includes chart axis ticks, and Recharts' off-screen
+  measurement span is pinned to the same font so label placement is measured in
+  the font it renders in.
+- **2px radius, everywhere.** No pills.
+- **Motion on state change only.** Entrance animations delay data.
+
+Progressive disclosure sits on top of this: the decision (risk, sweet spot,
+recommendations) is always visible, while the searcher's ledger, model
+attribution, split ladder, corpus, model card and methodology live behind three
+disclosures. Default view is 1.8 screens; it was 8.1 before.
+
+---
+
 ## Deployment
 
 Vercel, git-connected: every push to `main` builds the Vite frontend as static
@@ -234,6 +260,7 @@ tests/                  41 tests over the invariants, detector, optimiser and AP
 |---|---|
 | Frontend | React 19 + TypeScript, Vite 8 |
 | UI | Tailwind CSS v4 + **shadcn/ui** (Radix primitives, CVA variants) |
+| Design | Quantitative terminal: flat surfaces, 1px neutral-800 borders, 2px radius, Inter + JetBrains Mono, emerald/crimson only |
 | Charts | **Recharts** — cost curve, attack path, corpus bars, calibration scatter, feature importance |
 | Backend | FastAPI + Uvicorn, Pydantic v2 |
 | ML | scikit-learn — `HistGradientBoosting` classifier (isotonic-calibrated) + regressor |

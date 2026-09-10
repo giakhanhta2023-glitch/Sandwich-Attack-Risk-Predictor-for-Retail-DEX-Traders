@@ -227,6 +227,14 @@
   stroke: var(--line);
 }
 
+/* Recharts measures label widths with an off-screen span on <body>, which
+   inherits the body font. Ticks render in mono, whose digits are wider than
+   Inter's, so the measurement under-reports and labels can collide. Measuring
+   in the font actually used keeps the placement honest. */
+#recharts_measurement_span {
+  font-family: var(--font-mono) !important;
+}
+
 /* --- motion ------------------------------------------------------
    State changes only. Entrance animations on a dashboard delay the
    data for no informational gain.
