@@ -1,4 +1,21 @@
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
+import { Badge as ShadBadge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
+import { cn } from '@/lib/utils'
+
+export { Skeleton } from '@/components/ui/skeleton'
+
+/**
+ * shadcn Card carrying the project's panel treatment.
+ *
+ * `.panel` is declared outside Tailwind's cascade layers, so its gradient and
+ * hairline win over Card's `bg-card` without needing `!important`; the padding
+ * and gap Card ships with are cleared here so each panel sets its own.
+ */
+export function Panel({ className, ...props }: ComponentProps<typeof Card>) {
+  return <Card className={cn('panel gap-0 py-0 shadow-none', className)} {...props} />
+}
 
 export function Section({
   id,
@@ -16,7 +33,7 @@ export function Section({
   className?: string
 }) {
   return (
-    <section id={id} className={`relative z-10 mx-auto w-full max-w-[1400px] px-6 py-20 ${className}`}>
+    <section id={id} className={cn('relative z-10 mx-auto w-full max-w-[1400px] px-6 py-20', className)}>
       {(eyebrow || title) && (
         <header className="mb-10 max-w-3xl">
           {eyebrow && <div className="eyebrow mb-3">{eyebrow}</div>}
@@ -46,59 +63,61 @@ export function Stat({
   tone?: 'neutral' | 'hot' | 'cool' | 'warn'
   size?: 'sm' | 'md' | 'lg'
 }) {
-  const toneClass = {
-    neutral: 'text-ink',
-    hot: 'text-hot',
-    cool: 'text-cool',
-    warn: 'text-warn',
-  }[tone]
-  const sizeClass = {
-    sm: 'text-lg',
-    md: 'text-2xl',
-    lg: 'text-[2.5rem] leading-none',
-  }[size]
-
   return (
     <div>
       <div className="eyebrow mb-1.5">{label}</div>
-      <div className={`num font-semibold ${sizeClass} ${toneClass}`}>{value}</div>
+      <div
+        className={cn(
+          'num font-semibold',
+          { sm: 'text-lg', md: 'text-2xl', lg: 'text-[2.5rem] leading-none' }[size],
+          { neutral: 'text-ink', hot: 'text-hot', cool: 'text-cool', warn: 'text-warn' }[tone],
+        )}
+      >
+        {value}
+      </div>
       {sub && <div className="mt-1 text-xs text-ink-faint">{sub}</div>}
     </div>
   )
 }
 
-export function Badge({
-  children,
-  tone = 'neutral',
-}: {
-  children: ReactNode
-  tone?: 'neutral' | 'hot' | 'cool' | 'warn' | 'info'
-}) {
-  const tones = {
-    neutral: 'border-line-bright text-ink-dim',
-    hot: 'border-hot/40 text-hot bg-hot/8',
-    cool: 'border-cool/40 text-cool bg-cool/8',
-    warn: 'border-warn/40 text-warn bg-warn/8',
-    info: 'border-info/40 text-info bg-info/8',
-  }
+type Tone = 'neutral' | 'hot' | 'cool' | 'warn' | 'info'
+
+const BADGE_TONES: Record<Tone, string> = {
+  neutral: 'border-line-bright bg-transparent text-ink-dim',
+  hot: 'border-hot/40 bg-hot/10 text-hot',
+  cool: 'border-cool/40 bg-cool/10 text-cool',
+  warn: 'border-warn/40 bg-warn/10 text-warn',
+  info: 'border-info/40 bg-info/10 text-info',
+}
+
+export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[0.6875rem] tracking-wide ${tones[tone]}`}
+    <ShadBadge
+      variant="outline"
+      className={cn('rounded-full font-mono text-[0.6875rem] font-normal tracking-wide', BADGE_TONES[tone])}
     >
       {children}
-    </span>
+    </ShadBadge>
   )
 }
 
 export function LiveDot({ live }: { live: boolean }) {
   return (
     <span
-      className={`inline-block h-1.5 w-1.5 rounded-full ${live ? 'bg-cool pulse-dot' : 'bg-ink-faint'}`}
+      className={cn('inline-block h-1.5 w-1.5 rounded-full', live ? 'bg-cool pulse-dot' : 'bg-ink-faint')}
+      aria-label={live ? 'live' : 'offline'}
     />
   )
 }
 
-/** Horizontal bar used in the dashboard tables. */
+const BAR_TONES = {
+  hot: '[&>[data-slot=progress-indicator]]:bg-hot',
+  cool: '[&>[data-slot=progress-indicator]]:bg-cool',
+  warn: '[&>[data-slot=progress-indicator]]:bg-warn',
+  info: '[&>[data-slot=progress-indicator]]:bg-info',
+}
+
+/** Proportional bar used across the dashboard tables. */
 export function Bar({
   value,
   max,
@@ -106,20 +125,8 @@ export function Bar({
 }: {
   value: number
   max: number
-  tone?: 'hot' | 'cool' | 'warn' | 'info'
+  tone?: keyof typeof BAR_TONES
 }) {
-  const width = max > 0 ? Math.min(100, (value / max) * 100) : 0
-  const colors = { hot: 'bg-hot', cool: 'bg-cool', warn: 'bg-warn', info: 'bg-info' }
-  return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-line">
-      <div
-        className={`h-full rounded-full ${colors[tone]} transition-[width] duration-700 ease-out`}
-        style={{ width: `${width}%` }}
-      />
-    </div>
-  )
-}
-
-export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-line/60 ${className}`} />
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
+  return <Progress value={pct} className={cn('h-1.5 bg-line', BAR_TONES[tone])} />
 }

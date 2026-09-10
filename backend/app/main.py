@@ -276,6 +276,7 @@ def analyze(req: AnalyzeRequest) -> dict[str, Any]:
             "expected_cost_usd": round(spot.expected_cost_usd, 2),
             "expected_cost_bps": round(spot.expected_cost_bps, 2),
             "controllable_cost_usd": round(spot.controllable_cost_usd, 2),
+            "at_grid_floor": spot.at_grid_floor,
             "baseline_impact_usd": round(spot.baseline_impact_usd, 2),
             "p_attack": round(spot.p_attack, 5),
             "p_revert": round(spot.p_revert, 5),

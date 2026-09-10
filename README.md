@@ -24,8 +24,9 @@ attacker's budget.
 
 ## What this does
 
-1. **Ingests swaps** from Helius (Solana) and BigQuery (Ethereum), with execution
-   ordering preserved, because a sandwich is defined entirely by ordering.
+1. **Ingests swaps** from Helius (Solana, the primary source) and BigQuery
+   (Ethereum), with execution ordering preserved, because a sandwich is defined
+   entirely by ordering.
 2. **Detects and labels** sandwiches by matching front-run/victim/back-run triples and
    reconstructing what the victim *would* have received.
 3. **Predicts risk** with a calibrated gradient-boosted classifier, plus a severity
@@ -144,9 +145,29 @@ backend/
   ingestion/synthetic.py     offline simulator for running without credentials
   ml/train.py           chronological split, isotonic calibration, model report
   ml/predictor.py       serving wrapper with per-prediction ablation attribution
-frontend/               Vite + React + TypeScript, hand-rolled SVG charts
+frontend/
+  src/components/       Analyzer, CostCurve, AttackAnatomy, Insights
+  src/components/ui/    shadcn/ui primitives (Radix + CVA)
+  src/lib/utils.ts      cn() class merger
 tests/                  41 tests over the invariants, detector, optimiser and API
 ```
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Frontend | React 19 + TypeScript, Vite 8 |
+| UI | Tailwind CSS v4 + **shadcn/ui** (Radix primitives, CVA variants) |
+| Charts | **Recharts** — cost curve, attack path, corpus bars, calibration scatter, feature importance |
+| Backend | FastAPI + Uvicorn, Pydantic v2 |
+| ML | scikit-learn — `HistGradientBoosting` classifier (isotonic-calibrated) + regressor |
+| Inference | In-process on the backend; models loaded once into a singleton |
+| Storage | Flat files — `joblib` artifacts, Parquet corpus. No database |
+| Chain data | **Solana via Helius** (primary), Ethereum via BigQuery `crypto_ethereum` |
+
+The models run server-side rather than in the browser because six of the twenty features
+are computed by the AMM solver in `core/amm.py` — scoring in the client would mean
+shipping both the math engine and a converted model just to reproduce one probability.
 
 ---
 
@@ -169,5 +190,9 @@ tests/                  41 tests over the invariants, detector, optimiser and AP
   auction is a coin flip the features cannot observe, so no model reaches 1.0 on this
   label.
 - **Single-hop, single-pool.** Multi-hop routes and aggregator splits are not scored.
+- **Boundary solutions on Solana.** A failed Solana transaction costs a fraction of a
+  cent, so once a trade is attackable at all the optimiser often wants the tightest
+  tolerance in range. The API flags that case (`at_grid_floor`) and the UI says the
+  number is a floor rather than a fine-tuned optimum.
 
 Research and execution tooling, not financial advice.

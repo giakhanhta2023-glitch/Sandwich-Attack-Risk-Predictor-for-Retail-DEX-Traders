@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { api } from './api'
-import type { Methodology, Pool } from './api'
-import { Analyzer } from './components/Analyzer'
-import { AttackAnatomy } from './components/AttackAnatomy'
-import { CorpusDashboard, MethodologySection, ModelCard } from './components/Insights'
-import { Badge, LiveDot } from './components/primitives'
+import { api } from '@/api'
+import type { Methodology, Pool } from '@/api'
+import { Analyzer } from '@/components/Analyzer'
+import { AttackAnatomy } from '@/components/AttackAnatomy'
+import { CorpusDashboard, MethodologySection, ModelCard } from '@/components/Insights'
+import { Badge, LiveDot, Panel } from '@/components/primitives'
+import { Button } from '@/components/ui/button'
+import { TooltipProvider } from '@/components/ui/tooltip'
 
 const NAV = [
   { href: '#analyzer', label: 'Risk engine' },
@@ -30,15 +32,17 @@ export default function App() {
   }, [])
 
   return (
-    <div className="relative min-h-screen">
-      <Header sources={sources} />
-      <Hero />
-      {offline ? <Offline /> : <Analyzer pools={pools} />}
-      <CorpusDashboard />
-      <ModelCard />
-      <MethodologySection />
-      <Footer />
-    </div>
+    <TooltipProvider delayDuration={200}>
+      <div className="relative min-h-screen">
+        <Header sources={sources} />
+        <Hero />
+        {offline ? <Offline /> : <Analyzer pools={pools} />}
+        <CorpusDashboard />
+        <ModelCard />
+        <MethodologySection />
+        <Footer />
+      </div>
+    </TooltipProvider>
   )
 }
 
@@ -108,7 +112,7 @@ function Hero() {
     <section id="top" className="relative z-10 mx-auto w-full max-w-[1400px] px-6 pt-16 pb-8 md:pt-24">
       <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
         <div className="rise">
-          <Badge tone="hot">MEV · Ethereum &amp; Solana</Badge>
+          <Badge tone="hot">MEV · Solana &amp; Ethereum</Badge>
 
           <h1 className="mt-5 text-[2.75rem] leading-[0.98] font-semibold tracking-[-0.04em] md:text-[4rem]">
             Your slippage setting
@@ -123,25 +127,24 @@ function Hero() {
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="#analyzer"
-              className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-void transition-opacity hover:opacity-90"
+            <Button asChild size="lg" className="h-11 rounded-lg text-sm font-medium">
+              <a href="#analyzer">Analyse a trade</a>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="h-11 rounded-lg border-line-bright bg-transparent text-sm font-medium text-ink-dim hover:border-ink-faint hover:bg-raised hover:text-ink"
             >
-              Analyse a trade
-            </a>
-            <a
-              href="#methodology"
-              className="rounded-lg border border-line-bright px-5 py-2.5 text-sm font-medium text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
-            >
-              How it works
-            </a>
+              <a href="#methodology">How it works</a>
+            </Button>
           </div>
 
           <dl className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-line pt-6">
             {[
               ['Closed form', 'front-run capacity'],
               ['Calibrated', 'probability model'],
-              ['Two chains', 'Helius + BigQuery'],
+              ['Solana first', 'Helius ingestion'],
             ].map(([a, b]) => (
               <div key={a}>
                 <dt className="text-sm font-medium text-ink">{a}</dt>
@@ -162,7 +165,7 @@ function Hero() {
 function Offline() {
   return (
     <div className="relative z-10 mx-auto max-w-[1400px] px-6 py-20">
-      <div className="panel border-hot/40 p-8">
+      <Panel className="border-hot/40 p-8">
         <div className="eyebrow mb-2 text-hot">Backend unreachable</div>
         <h2 className="mb-3 text-xl font-semibold">The risk API is not running</h2>
         <p className="mb-4 max-w-2xl text-sm text-ink-dim">
@@ -171,7 +174,7 @@ function Offline() {
         <pre className="num overflow-x-auto rounded-lg border border-line bg-void px-4 py-3 text-xs text-cool">
           uvicorn backend.app.main:app --reload --port 8000
         </pre>
-      </div>
+      </Panel>
     </div>
   )
 }

@@ -1,7 +1,24 @@
 import { useEffect, useState } from 'react'
-import { api, usd, compactUsd, pct, bps } from '../api'
-import type { CorpusStats, Methodology, ModelReport } from '../api'
-import { Badge, Bar, LiveDot, Section, Skeleton, Stat } from './primitives'
+import {
+  Bar as RBar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ReferenceLine,
+  ResponsiveContainer,
+  Scatter,
+  ScatterChart,
+  Tooltip as RTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import { api, usd, compactUsd, pct, bps } from '@/api'
+import type { CorpusStats, Methodology, ModelReport } from '@/api'
+import { Badge, Bar, LiveDot, Panel, Section, Skeleton, Stat } from './primitives'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 
 /** Corpus-level view: where sandwiches actually land. */
 export function CorpusDashboard() {
@@ -11,7 +28,12 @@ export function CorpusDashboard() {
     api.stats().then(setStats).catch(() => setStats({ available: false }))
   }, [])
 
-  if (!stats) return <Section><Skeleton className="h-64" /></Section>
+  if (!stats)
+    return (
+      <Section>
+        <Skeleton className="h-64 bg-line/60" />
+      </Section>
+    )
   if (!stats.available) {
     return (
       <Section eyebrow="Corpus" title="No corpus yet">
@@ -21,8 +43,6 @@ export function CorpusDashboard() {
   }
 
   const maxPoolRate = Math.max(...(stats.by_pool ?? []).map((p) => p.attack_rate), 0.01)
-  const maxSlipRate = Math.max(...(stats.by_slippage ?? []).map((p) => p.attack_rate), 0.01)
-  const maxSizeRate = Math.max(...(stats.by_size ?? []).map((p) => p.attack_rate), 0.01)
 
   return (
     <Section
@@ -31,7 +51,7 @@ export function CorpusDashboard() {
       title="Risk is not spread evenly"
       lede="Attack rates across the labelled corpus. The pattern is consistent: sandwiches concentrate where a wide tolerance meets a thin pool, and almost vanish where the pool's own fee tier costs the searcher more than the trade is worth."
     >
-      <div className="panel mb-5 grid gap-px bg-line sm:grid-cols-2 lg:grid-cols-4">
+      <Panel className="mb-5 grid gap-px overflow-hidden bg-line sm:grid-cols-2 lg:grid-cols-4">
         <div className="bg-ground p-5">
           <Stat label="Swaps analysed" value={stats.total_swaps?.toLocaleString()} />
         </div>
@@ -49,100 +69,156 @@ export function CorpusDashboard() {
             tone="warn"
           />
         </div>
-      </div>
+      </Panel>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <div className="panel p-5">
+        <Panel className="p-5">
           <div className="eyebrow mb-1">By tolerance</div>
           <h3 className="mb-1 text-base font-semibold">Attack rate vs the slippage you set</h3>
           <p className="mb-4 text-xs text-ink-faint">
             The single controllable input. Every extra basis point of tolerance is budget handed to a searcher.
           </p>
-          <div className="space-y-3">
-            {stats.by_slippage?.map((b) => (
-              <div key={b.bucket}>
-                <div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
-                  <span className="num text-ink-dim">{b.bucket}</span>
-                  <span className="flex items-baseline gap-3">
-                    <span className="num text-ink-faint">{b.swaps.toLocaleString()} swaps</span>
-                    <span className="num w-12 text-right text-hot">{pct(b.attack_rate, 1)}</span>
-                  </span>
-                </div>
-                <Bar value={b.attack_rate} max={maxSlipRate} tone="hot" />
-              </div>
-            ))}
-          </div>
-        </div>
+          <RateChart
+            data={(stats.by_slippage ?? []).map((b) => ({
+              label: b.bucket,
+              rate: b.attack_rate,
+              detail: `${b.swaps.toLocaleString()} swaps · median loss ${bps(b.median_loss_bps)}`,
+            }))}
+          />
+        </Panel>
 
-        <div className="panel p-5">
+        <Panel className="p-5">
           <div className="eyebrow mb-1">By trade size</div>
           <h3 className="mb-1 text-base font-semibold">Attack rate vs notional</h3>
           <p className="mb-4 text-xs text-ink-faint">
             Small trades are usually safe not because bots miss them, but because the gas and bundle bid exceed
             what can be extracted.
           </p>
-          <div className="space-y-3">
-            {stats.by_size?.map((b) => (
-              <div key={b.bucket}>
-                <div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
-                  <span className="num text-ink-dim">{b.bucket}</span>
-                  <span className="flex items-baseline gap-3">
-                    <span className="num text-ink-faint">
-                      {b.median_loss_usd > 0 ? `${usd(b.median_loss_usd)} median loss` : '—'}
-                    </span>
-                    <span className="num w-12 text-right text-hot">{pct(b.attack_rate, 1)}</span>
-                  </span>
-                </div>
-                <Bar value={b.attack_rate} max={maxSizeRate} tone="hot" />
-              </div>
-            ))}
-          </div>
-        </div>
+          <RateChart
+            data={(stats.by_size ?? []).map((b) => ({
+              label: b.bucket,
+              rate: b.attack_rate,
+              detail:
+                b.median_loss_usd > 0
+                  ? `${b.swaps.toLocaleString()} swaps · median loss ${usd(b.median_loss_usd)}`
+                  : `${b.swaps.toLocaleString()} swaps`,
+            }))}
+          />
+        </Panel>
       </div>
 
-      <div className="panel mt-5 p-5">
+      <Panel className="mt-5 p-5">
         <div className="eyebrow mb-1">By pool</div>
         <h3 className="mb-4 text-base font-semibold">Where the extraction happens</h3>
         <div className="-mx-5 overflow-x-auto px-5">
-          <table className="w-full min-w-[700px] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left">
-                {['Pool', 'Chain', 'Depth', 'Swaps', 'Hit', 'Median loss', 'Attack rate'].map((h) => (
-                  <th key={h} className="eyebrow pb-2 font-normal last:text-right">
+          <Table className="min-w-[700px]">
+            <TableHeader>
+              <TableRow className="border-line hover:bg-transparent">
+                {['Pool', 'Chain', 'Depth', 'Swaps', 'Hit', 'Median loss', 'Attack rate'].map((h, i, a) => (
+                  <TableHead
+                    key={h}
+                    className={cn('eyebrow h-auto pb-2 font-normal', i === a.length - 1 && 'text-right')}
+                  >
                     {h}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {stats.by_pool?.map((p) => (
-                <tr key={p.pool_id} className="border-b border-line/60 last:border-0">
-                  <td className="py-2.5">
+                <TableRow key={p.pool_id} className="border-line/60 hover:bg-raised/40">
+                  <TableCell>
                     <div className="font-medium text-ink">{p.symbol}</div>
                     <div className="text-[0.6875rem] text-ink-faint">{p.venue}</div>
-                  </td>
-                  <td className="py-2.5">
+                  </TableCell>
+                  <TableCell>
                     <Badge tone={p.chain === 'solana' ? 'info' : 'neutral'}>{p.chain}</Badge>
-                  </td>
-                  <td className="num py-2.5 text-ink-dim">{compactUsd(p.tvl_usd)}</td>
-                  <td className="num py-2.5 text-ink-faint">{p.swaps.toLocaleString()}</td>
-                  <td className="num py-2.5 text-ink-faint">{p.sandwiched.toLocaleString()}</td>
-                  <td className="num py-2.5 text-warn">{p.median_loss_bps ? bps(p.median_loss_bps) : '—'}</td>
-                  <td className="py-2.5 text-right">
+                  </TableCell>
+                  <TableCell className="num text-ink-dim">{compactUsd(p.tvl_usd)}</TableCell>
+                  <TableCell className="num text-ink-faint">{p.swaps.toLocaleString()}</TableCell>
+                  <TableCell className="num text-ink-faint">{p.sandwiched.toLocaleString()}</TableCell>
+                  <TableCell className="num text-warn">
+                    {p.median_loss_bps ? bps(p.median_loss_bps) : '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2.5">
                       <div className="hidden w-24 sm:block">
                         <Bar value={p.attack_rate} max={maxPoolRate} tone="hot" />
                       </div>
                       <span className="num w-12 text-right text-hot">{pct(p.attack_rate, 1)}</span>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
-      </div>
+      </Panel>
     </Section>
+  )
+}
+
+type ReliabilityBin = ModelReport['metrics']['reliability'][number]
+type ImportanceRow = ModelReport['feature_importance'][number]
+
+interface RateRow {
+  label: string
+  rate: number
+  detail: string
+}
+
+/** Horizontal bars: category labels are long, values are small percentages. */
+function RateChart({ data }: { data: RateRow[] }) {
+  const max = Math.max(...data.map((d) => d.rate), 0.01)
+  return (
+    <div style={{ height: Math.max(140, data.length * 34) }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 0, right: 44, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke="var(--line)" horizontal={false} />
+          <XAxis
+            type="number"
+            domain={[0, max * 1.12]}
+            tickFormatter={(v: number) => pct(v, 0)}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={86}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 10, fontFamily: 'var(--font-mono)', fill: 'var(--ink-dim)' }}
+          />
+          <RTooltip
+            cursor={{ fill: 'var(--raised)', fillOpacity: 0.5 }}
+            content={({ active, payload }) => {
+              const row = payload?.[0]?.payload as RateRow | undefined
+              return active && row ? <RateTooltipView row={row} /> : null
+            }}
+          />
+          <RBar dataKey="rate" radius={[0, 3, 3, 0]} isAnimationActive={false}>
+            {data.map((d) => (
+              <Cell
+                key={d.label}
+                fill="var(--hot)"
+                fillOpacity={0.35 + 0.65 * (d.rate / max)}
+              />
+            ))}
+          </RBar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+function RateTooltipView({ row }: { row: RateRow }) {
+  return (
+    <div className="rounded-lg border border-line-bright bg-void/95 px-3 py-2 backdrop-blur-sm">
+      <div className="num text-[0.6875rem] text-ink">{row.label}</div>
+      <div className="num text-[0.625rem] text-hot">{pct(row.rate, 2)} sandwiched</div>
+      <div className="num text-[0.625rem] text-ink-faint">{row.detail}</div>
+    </div>
   )
 }
 
@@ -159,16 +235,20 @@ export function ModelCard() {
     return (
       <Section eyebrow="Model" title="Not trained yet">
         <p className="text-ink-dim">
-          Run <code className="num rounded bg-surface px-1.5 py-0.5 text-ink">python -m backend.ml.train</code> to
-          build the model artifacts.
+          Run <code className="num rounded bg-surface px-1.5 py-0.5 text-ink">python -m backend.ml.train</code>{' '}
+          to build the model artifacts.
         </p>
       </Section>
     )
   }
-  if (!report) return <Section><Skeleton className="h-64" /></Section>
+  if (!report)
+    return (
+      <Section>
+        <Skeleton className="h-64 bg-line/60" />
+      </Section>
+    )
 
   const m = report.metrics
-  const maxImp = Math.max(...report.feature_importance.map((f) => f.importance), 0.0001)
 
   return (
     <Section
@@ -177,8 +257,8 @@ export function ModelCard() {
       title="What the model is, and where it is weak"
       lede="Gradient-boosted trees with isotonic calibration, split chronologically by block so no future regime leaks backwards. Calibration matters more than ranking here: the recommendation multiplies this probability by a dollar loss, so a confidently wrong score produces a confidently wrong slippage."
     >
-      <div className="grid gap-5 lg:grid-cols-[1fr_1fr]">
-        <div className="panel p-5">
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel className="p-5">
           <div className="eyebrow mb-4">Held-out performance</div>
           <div className="grid grid-cols-2 gap-5">
             <Stat label="ROC AUC" value={m.roc_auc.toFixed(3)} tone="cool" />
@@ -187,31 +267,22 @@ export function ModelCard() {
             <Stat label="Loss MAE" value={`${m.loss_mae_bps}bp`} sub={`median loss ${m.loss_median_bps}bp`} />
           </div>
 
-          <div className="mt-6 border-t border-line pt-4">
-            <div className="eyebrow mb-3">Calibration</div>
-            <ReliabilityPlot bins={m.reliability} />
-            <p className="mt-3 text-xs leading-relaxed text-ink-faint">
-              Predicted probability against observed frequency. Points on the diagonal mean a stated 20% risk
-              happens about 20% of the time.
-            </p>
-          </div>
-        </div>
+          <Separator className="my-5 bg-line" />
+          <div className="eyebrow mb-3">Calibration</div>
+          <ReliabilityPlot bins={m.reliability} />
+          <p className="mt-3 text-xs leading-relaxed text-ink-faint">
+            Predicted probability against observed frequency. Points on the dashed diagonal mean a stated 20%
+            risk happens about 20% of the time.
+          </p>
+        </Panel>
 
-        <div className="panel p-5">
+        <Panel className="p-5">
           <div className="eyebrow mb-1">Feature importance</div>
           <h3 className="mb-4 text-base font-semibold">Permutation importance on held-out data</h3>
-          <div className="space-y-2.5">
-            {report.feature_importance.slice(0, 10).map((f) => (
-              <div key={f.feature}>
-                <div className="mb-1 flex items-baseline justify-between gap-3 text-xs">
-                  <span className="num text-ink-dim">{f.feature}</span>
-                  <span className="num text-ink-faint">{f.importance.toFixed(4)}</span>
-                </div>
-                <Bar value={f.importance} max={maxImp} tone="info" />
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 space-y-1.5 border-t border-line pt-4 text-[0.6875rem] text-ink-faint">
+          <ImportanceChart items={report.feature_importance.slice(0, 10)} />
+
+          <Separator className="my-4 bg-line" />
+          <div className="space-y-1.5 text-[0.6875rem] text-ink-faint">
             <div className="flex justify-between">
               <span>Rows</span>
               <span className="num">
@@ -227,16 +298,16 @@ export function ModelCard() {
               <span className="num text-warn">{report.data_source}</span>
             </div>
           </div>
-        </div>
+        </Panel>
       </div>
 
-      <div className="panel mt-5 border-warn/25 p-5">
+      <Panel className="mt-5 border-warn/25 p-5">
         <div className="eyebrow mb-3 text-warn">Known limitations</div>
         <ul className="grid gap-2.5 text-xs leading-relaxed text-ink-dim md:grid-cols-2">
           <li>
-            <strong className="text-ink">Training data is simulated.</strong> Without a Helius key or GCP
-            credentials the corpus comes from the built-in simulator, not the chain. Metrics describe how well the
-            model recovers a known generating process — they are not out-of-sample chain performance.
+            <strong className="text-ink">Training data is simulated.</strong> Without a Helius key the corpus
+            comes from the built-in simulator, not the chain. Metrics describe how well the model recovers a
+            known generating process — they are not out-of-sample chain performance.
           </li>
           <li>
             <strong className="text-ink">Constant-product only.</strong> The economics assume an x·y=k curve.
@@ -244,55 +315,118 @@ export function ModelCard() {
             thinner once price leaves the active range.
           </li>
           <li>
-            <strong className="text-ink">PR AUC is capped by design.</strong> The label carries irreducible noise
-            — whether a searcher is watching and wins the auction is a coin flip the features cannot observe — so
-            no model reaches 1.0 on it.
+            <strong className="text-ink">PR AUC is capped by design.</strong> The label carries irreducible
+            noise — whether a searcher is watching and wins the auction is a coin flip the features cannot
+            observe — so no model reaches 1.0 on it.
           </li>
           <li>
             <strong className="text-ink">Single-hop, single-pool.</strong> Multi-hop routes and aggregator
             splits are not modelled; each leg would need its own scoring.
           </li>
         </ul>
-      </div>
+      </Panel>
     </Section>
   )
 }
 
 function ReliabilityPlot({ bins }: { bins: ModelReport['metrics']['reliability'] }) {
-  const S = 160
-  const P = 22
-  const scale = (v: number) => P + v * (S - 2 * P)
+  const max = Math.max(...bins.flatMap((b) => [b.predicted, b.observed]), 0.1) * 1.1
 
   return (
-    <svg viewBox={`0 0 ${S} ${S}`} className="w-full max-w-[220px]" role="img" aria-label="Calibration plot">
-      <line x1={P} y1={S - P} x2={S - P} y2={P} stroke="var(--color-line-bright)" strokeDasharray="3 3" />
-      <line x1={P} y1={P} x2={P} y2={S - P} stroke="var(--color-line)" />
-      <line x1={P} y1={S - P} x2={S - P} y2={S - P} stroke="var(--color-line)" />
-      {bins.map((b, i) => (
-        <circle
-          key={i}
-          cx={scale(b.predicted)}
-          cy={S - scale(b.observed)}
-          r={3.5}
-          fill="var(--color-cool)"
-          opacity={0.85}
-        />
-      ))}
-      <text x={S / 2} y={S - 4} textAnchor="middle" className="num" fontSize="7" fill="var(--color-ink-faint)">
-        predicted
-      </text>
-      <text
-        x={8}
-        y={S / 2}
-        textAnchor="middle"
-        className="num"
-        fontSize="7"
-        fill="var(--color-ink-faint)"
-        transform={`rotate(-90 8 ${S / 2})`}
-      >
-        observed
-      </text>
-    </svg>
+    <div className="h-[190px] w-full max-w-[280px]">
+      <ResponsiveContainer width="100%" height="100%">
+        <ScatterChart margin={{ top: 8, right: 12, bottom: 18, left: 0 }}>
+          <CartesianGrid stroke="var(--line)" />
+          <XAxis
+            type="number"
+            dataKey="predicted"
+            domain={[0, max]}
+            tickFormatter={(v: number) => pct(v, 0)}
+            tickLine={false}
+            axisLine={false}
+            label={{
+              value: 'predicted',
+              position: 'insideBottom',
+              offset: -10,
+              style: { fill: 'var(--ink-faint)', fontSize: 9, fontFamily: 'var(--font-mono)' },
+            }}
+          />
+          <YAxis
+            type="number"
+            dataKey="observed"
+            domain={[0, max]}
+            tickFormatter={(v: number) => pct(v, 0)}
+            tickLine={false}
+            axisLine={false}
+            width={40}
+          />
+          {/* perfect calibration */}
+          <ReferenceLine
+            segment={[
+              { x: 0, y: 0 },
+              { x: max, y: max },
+            ]}
+            stroke="var(--line-bright)"
+            strokeDasharray="3 3"
+          />
+          <RTooltip
+            cursor={{ stroke: 'var(--line-bright)' }}
+            content={({ active, payload }) => {
+              const row = payload?.[0]?.payload as ReliabilityBin | undefined
+              return active && row ? <CalibrationTooltipView row={row} /> : null
+            }}
+          />
+          <Scatter data={bins} fill="var(--cool)" fillOpacity={0.85} isAnimationActive={false} />
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+function CalibrationTooltipView({ row }: { row: ReliabilityBin }) {
+  return (
+    <div className="num rounded-lg border border-line-bright bg-void/95 px-3 py-2 text-[0.625rem] backdrop-blur-sm">
+      <div className="text-ink">predicted {pct(row.predicted, 1)}</div>
+      <div className="text-cool">observed {pct(row.observed, 1)}</div>
+      <div className="text-ink-faint">{row.count.toLocaleString()} swaps</div>
+    </div>
+  )
+}
+
+function ImportanceChart({ items }: { items: ModelReport['feature_importance'] }) {
+  return (
+    <div style={{ height: Math.max(160, items.length * 26) }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={items} layout="vertical" margin={{ top: 0, right: 12, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke="var(--line)" horizontal={false} />
+          <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={(v: number) => v.toFixed(3)} />
+          <YAxis
+            type="category"
+            dataKey="feature"
+            width={150}
+            tickLine={false}
+            axisLine={false}
+            tick={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', fill: 'var(--ink-dim)' }}
+          />
+          <RTooltip
+            cursor={{ fill: 'var(--raised)', fillOpacity: 0.5 }}
+            content={({ active, payload }) => {
+              const row = payload?.[0]?.payload as ImportanceRow | undefined
+              if (!active || !row) return null
+              return (
+                <div className="num rounded-lg border border-line-bright bg-void/95 px-3 py-2 text-[0.625rem] backdrop-blur-sm">
+                  <div className="text-ink">{row.feature}</div>
+                  <div className="text-info">
+                    {row.importance.toFixed(4)} ± {row.std.toFixed(4)}
+                  </div>
+                </div>
+              )
+            }}
+          />
+          <RBar dataKey="importance" fill="var(--info)" radius={[0, 3, 3, 0]} isAnimationActive={false} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -305,7 +439,12 @@ export function MethodologySection() {
     api.methodology().then(setMeth).catch(() => {})
   }, [])
 
-  if (!meth) return <Section><Skeleton className="h-64" /></Section>
+  if (!meth)
+    return (
+      <Section>
+        <Skeleton className="h-64 bg-line/60" />
+      </Section>
+    )
 
   return (
     <Section
@@ -316,7 +455,7 @@ export function MethodologySection() {
     >
       <div className="grid gap-5 lg:grid-cols-3">
         {Object.entries(meth.sources).map(([chain, s]) => (
-          <div key={chain} className="panel p-5">
+          <Panel key={chain} className="p-5">
             <div className="mb-3 flex items-center justify-between">
               <div className="eyebrow">{chain}</div>
               <span className="flex items-center gap-2 text-[0.6875rem] text-ink-faint">
@@ -326,10 +465,10 @@ export function MethodologySection() {
             </div>
             <h3 className="mb-1.5 text-base font-semibold">{s.provider}</h3>
             <p className="text-xs leading-relaxed text-ink-dim">{s.detail}</p>
-          </div>
+          </Panel>
         ))}
 
-        <div className="panel p-5">
+        <Panel className="p-5">
           <div className="eyebrow mb-3">Detection</div>
           <h3 className="mb-2 text-base font-semibold">Confirming a sandwich</h3>
           <p className="mb-3 text-xs text-ink-dim">{meth.detection.pattern}</p>
@@ -341,13 +480,14 @@ export function MethodologySection() {
               </li>
             ))}
           </ul>
-          <p className="mt-3 border-t border-line pt-3 text-[0.6875rem] leading-relaxed text-ink-faint">
+          <Separator className="my-3 bg-line" />
+          <p className="text-[0.6875rem] leading-relaxed text-ink-faint">
             {meth.detection.loss_measurement}
           </p>
-        </div>
+        </Panel>
       </div>
 
-      <div className="panel mt-5 p-5">
+      <Panel className="mt-5 p-5">
         <div className="eyebrow mb-1">The optimisation</div>
         <h3 className="mb-3 text-base font-semibold">Objective and closed forms</h3>
         <div className="space-y-3">
@@ -355,24 +495,25 @@ export function MethodologySection() {
           <Formula label="Front-run capacity" body={meth.optimisation.frontrun_capacity} />
         </div>
         <p className="mt-3 text-xs leading-relaxed text-ink-dim">{meth.optimisation.note}</p>
-      </div>
+      </Panel>
 
-      <div className="panel mt-5 p-5">
+      <Panel className="mt-5 p-5">
         <div className="eyebrow mb-1">Ethereum ingestion</div>
         <h3 className="mb-4 text-base font-semibold">The BigQuery that labels the corpus</h3>
         <div className="space-y-2">
           {meth.bigquery_sql.map((q) => (
             <div key={q.name} className="overflow-hidden rounded-lg border border-line">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => setOpenSql(openSql === q.name ? null : q.name)}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-raised"
+                className="flex h-auto w-full items-center justify-between gap-3 rounded-none px-4 py-3 text-left hover:bg-raised"
               >
                 <span>
                   <span className="num block text-xs text-ink">{q.name}</span>
-                  <span className="block text-[0.6875rem] text-ink-faint">{q.purpose}</span>
+                  <span className="block text-[0.6875rem] font-normal text-ink-faint">{q.purpose}</span>
                 </span>
                 <span className="num shrink-0 text-ink-faint">{openSql === q.name ? '−' : '+'}</span>
-              </button>
+              </Button>
               {openSql === q.name && (
                 <pre className="num overflow-x-auto border-t border-line bg-void px-4 py-3 text-[0.6875rem] leading-relaxed text-ink-dim">
                   {q.sql}
@@ -381,7 +522,7 @@ export function MethodologySection() {
             </div>
           ))}
         </div>
-      </div>
+      </Panel>
     </Section>
   )
 }

@@ -1,19 +1,30 @@
 import { useEffect, useState } from 'react'
+import {
+  Line,
+  LineChart,
+  ReferenceArea,
+  ReferenceLine,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import type { DotProps } from 'recharts'
+import { Button } from '@/components/ui/button'
 
 /**
- * The hero explainer: one block, three transactions, and the price path the
- * victim actually gets filled on.
+ * The hero explainer: one block, three transactions, and the price path your
+ * swap actually gets filled on.
  *
- * The point it has to land is that nothing here is a hack or an exploit -- the
- * ordering is legitimate, the searcher just pays to be first and last. So the
- * animation walks the block in execution order and shows the price moving under
- * the victim before their swap ever runs.
+ * The point it has to land is that nothing here is a hack -- the ordering is
+ * legitimate, the searcher just pays to be first and last. So the animation
+ * walks the block in execution order and shows the price moving under the
+ * victim before their swap ever runs.
  */
 
 const STEPS = [
   {
     actor: 'market',
-    tag: 'Block N · pending',
+    tag: 'pending',
     title: 'You submit a swap',
     body: 'Your transaction sits in the public mempool with a slippage tolerance attached. Anyone can read both.',
     price: 1.0,
@@ -41,10 +52,6 @@ const STEPS = [
   },
 ] as const
 
-const W = 720
-const H = 190
-const PAD = { l: 44, r: 20, t: 18, b: 34 }
-
 export function AttackAnatomy() {
   const [step, setStep] = useState(0)
   const [playing, setPlaying] = useState(true)
@@ -55,120 +62,94 @@ export function AttackAnatomy() {
     return () => clearTimeout(t)
   }, [step, playing])
 
-  const prices = STEPS.map((s) => s.price)
-  const min = Math.min(...prices) - 0.012
-  const max = Math.max(...prices) + 0.012
+  // Recharts draws a Line across every row, so the reveal is done by nulling
+  // the price of steps that have not happened yet rather than slicing the array
+  // -- that keeps the x-axis stable instead of rescaling on each tick.
+  const data = STEPS.map((s, i) => ({
+    idx: i,
+    tag: s.tag,
+    actor: s.actor,
+    price: i <= step ? s.price : null,
+  }))
 
-  const x = (i: number) => PAD.l + (i / (STEPS.length - 1)) * (W - PAD.l - PAD.r)
-  const y = (p: number) => PAD.t + (1 - (p - min) / (max - min)) * (H - PAD.t - PAD.b)
-
-  const visible = STEPS.slice(0, step + 1)
-  const path = visible.map((s, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(s.price)}`).join(' ')
   const active = STEPS[step]
 
   return (
     <div className="panel overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
         <div className="eyebrow">Anatomy of a sandwich</div>
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setPlaying((p) => !p)}
-          className="rounded-full border border-line-bright px-3 py-1 font-mono text-[0.6875rem] text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+          className="num h-7 rounded-full border-line-bright bg-transparent px-3 text-[0.6875rem] text-ink-dim hover:border-ink-faint hover:text-ink"
         >
           {playing ? '❙❙ pause' : '▶ play'}
-        </button>
+        </Button>
       </div>
 
-      <div className="px-3 pt-4">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Price path during a sandwich attack">
-          {/* baseline: the price you were quoted */}
-          <line
-            x1={PAD.l}
-            x2={W - PAD.r}
-            y1={y(1.0)}
-            y2={y(1.0)}
-            stroke="var(--color-line-bright)"
-            strokeDasharray="3 4"
-          />
-          <text x={4} y={y(1.0) + 3} className="num" fontSize="9" fill="var(--color-ink-faint)">
-            quoted
-          </text>
-
-          {/* the region the attacker opened up between quote and fill */}
-          {step >= 2 && (
-            <rect
-              x={x(1)}
-              y={y(1.048)}
-              width={x(2) - x(1)}
-              height={y(1.0) - y(1.048)}
-              fill="var(--color-hot)"
-              opacity="0.1"
+      <div className="h-[190px] px-2 pt-4">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 14, right: 16, bottom: 6, left: 30 }}>
+            <XAxis
+              dataKey="tag"
+              tickLine={false}
+              axisLine={false}
+              tick={{ fontSize: 9, fontFamily: 'var(--font-mono)', fill: 'var(--ink-faint)' }}
             />
-          )}
+            <YAxis domain={[0.996, 1.06]} hide />
 
-          <path
-            d={path}
-            fill="none"
-            stroke="var(--color-hot)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+            {/* the price you were quoted, before anyone touched the block */}
+            <ReferenceLine
+              y={1.0}
+              stroke="var(--line-bright)"
+              strokeDasharray="3 4"
+              label={{
+                value: 'quoted',
+                position: 'left',
+                style: { fill: 'var(--ink-faint)', fontSize: 9, fontFamily: 'var(--font-mono)' },
+              }}
+            />
 
-          {STEPS.map((s, i) => {
-            const on = i <= step
-            const isVictim = s.actor === 'victim'
-            return (
-              <g key={i} opacity={on ? 1 : 0.22}>
-                <line
-                  x1={x(i)}
-                  x2={x(i)}
-                  y1={y(s.price)}
-                  y2={H - PAD.b}
-                  stroke="var(--color-line)"
-                  strokeWidth="1"
-                />
-                <circle
-                  cx={x(i)}
-                  cy={y(s.price)}
-                  r={i === step ? 6 : 4}
-                  fill={isVictim ? 'var(--color-ink)' : 'var(--color-hot)'}
-                  stroke="var(--color-void)"
-                  strokeWidth="2"
-                />
-                <text
-                  x={x(i)}
-                  y={H - PAD.b + 15}
-                  textAnchor="middle"
-                  className="num"
-                  fontSize="9"
-                  fill={i === step ? 'var(--color-ink)' : 'var(--color-ink-faint)'}
-                >
-                  {s.tag}
-                </text>
-              </g>
-            )
-          })}
+            {/* the gap the searcher opened between your quote and your fill */}
+            {step >= 2 && (
+              <ReferenceArea
+                x1="tx #1"
+                x2="tx #2"
+                y1={1.0}
+                y2={1.048}
+                fill="var(--hot)"
+                fillOpacity={0.12}
+                label={{
+                  value: 'your loss',
+                  style: { fill: 'var(--hot)', fontSize: 10, fontFamily: 'var(--font-mono)' },
+                }}
+              />
+            )}
 
-          {step >= 2 && (
-            <text
-              x={(x(1) + x(2)) / 2}
-              y={y(1.024)}
-              textAnchor="middle"
-              className="num"
-              fontSize="10"
-              fill="var(--color-hot)"
-            >
-              your loss
-            </text>
-          )}
-        </svg>
+            <Line
+              type="linear"
+              dataKey="price"
+              stroke="var(--hot)"
+              strokeWidth={2}
+              connectNulls={false}
+              isAnimationActive={false}
+              dot={<StepDot activeIndex={step} />}
+              activeDot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
 
       <div className="border-t border-line px-5 py-4">
         <div className="flex items-baseline gap-2.5">
           <span
             className={`num text-[0.6875rem] uppercase tracking-widest ${
-              active.actor === 'victim' ? 'text-ink' : active.actor === 'attacker' ? 'text-hot' : 'text-ink-faint'
+              active.actor === 'victim'
+                ? 'text-ink'
+                : active.actor === 'attacker'
+                  ? 'text-hot'
+                  : 'text-ink-faint'
             }`}
           >
             {active.actor}
@@ -178,21 +159,36 @@ export function AttackAnatomy() {
         <p className="mt-1.5 min-h-[2.75rem] text-sm leading-relaxed text-ink-dim">{active.body}</p>
 
         <div className="mt-3 flex gap-1.5">
-          {STEPS.map((_, i) => (
+          {STEPS.map((s, i) => (
             <button
-              key={i}
+              key={s.tag}
               onClick={() => {
                 setPlaying(false)
                 setStep(i)
               }}
-              aria-label={`Step ${i + 1}`}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                i <= step ? 'bg-hot' : 'bg-line'
-              }`}
+              aria-label={`Step ${i + 1}: ${s.title}`}
+              className={`h-1 flex-1 rounded-full transition-colors ${i <= step ? 'bg-hot' : 'bg-line'}`}
             />
           ))}
         </div>
       </div>
     </div>
+  )
+}
+
+/** Victim fill is inked, searcher legs are hot, the current step is enlarged. */
+function StepDot({ cx, cy, payload, activeIndex }: DotProps & { payload?: { idx: number; actor: string }; activeIndex?: number }) {
+  if (cx == null || cy == null || !payload) return null
+  const isVictim = payload.actor === 'victim'
+  const isCurrent = payload.idx === activeIndex
+  return (
+    <circle
+      cx={cx}
+      cy={cy}
+      r={isCurrent ? 6 : 4}
+      fill={isVictim ? 'var(--ink)' : 'var(--hot)'}
+      stroke="var(--void)"
+      strokeWidth={2}
+    />
   )
 }

@@ -108,6 +108,7 @@ export interface Analysis {
     expected_cost_bps: number
     controllable_cost_usd: number
     baseline_impact_usd: number
+    at_grid_floor: boolean
     p_attack: number
     p_revert: number
     critical_slippage_bps: number

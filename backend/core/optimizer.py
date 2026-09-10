@@ -261,6 +261,7 @@ class SweetSpot:
     default_slippage_bps: float
     baseline_impact_usd: float         # LP fee + price impact -- unavoidable
     controllable_cost_usd: float       # the part better execution can remove
+    at_grid_floor: bool                # optimum pinned to the tightest setting searched
     curve: list[dict[str, float]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -298,6 +299,12 @@ def find_sweet_spot(ctx: TradeContext, default_slippage_bps: float = 50.0) -> Sw
         default_slippage_bps=default_slippage_bps,
         baseline_impact_usd=baseline_impact_usd(ctx),
         controllable_cost_usd=best.expected_cost_usd - baseline_impact_usd(ctx),
+        # A boundary solution is not a precise recommendation: it means every
+        # tolerance we searched is attackable and the objective just wants the
+        # smallest one. Common on Solana, where a failed transaction costs a
+        # fraction of a cent so retrying is nearly free. The UI says so rather
+        # than presenting the floor as a computed optimum.
+        at_grid_floor=best.slippage_bps <= curve[0].slippage_bps + 1e-9,
         curve=[
             {
                 "slippage_bps": round(p.slippage_bps, 2),

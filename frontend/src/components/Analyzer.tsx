@@ -1,15 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, usd, compactUsd, pct, bps } from '../api'
-import type { Analysis, Pool } from '../api'
-import { Badge, Bar, Section, Skeleton, Stat } from './primitives'
+import { api, usd, compactUsd, pct, bps } from '@/api'
+import type { Analysis, Pool } from '@/api'
+import { Badge, Bar, Panel, Section, Skeleton, Stat } from './primitives'
 import { CostCurve } from './CostCurve'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
+import { Slider } from '@/components/ui/slider'
+import { Switch } from '@/components/ui/switch'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { cn } from '@/lib/utils'
 
 const SLIPPAGE_PRESETS = [10, 30, 50, 100, 300, 500]
 const SIZE_PRESETS = [500, 5_000, 25_000, 100_000]
 
 export function Analyzer({ pools }: { pools: Pool[] }) {
   const [poolId, setPoolId] = useState('')
-  const [notional, setNotional] = useState(25_000)
+  const [notional, setNotional] = useState(8_000)
   const [slippage, setSlippage] = useState(300)
   const [privateRelay, setPrivateRelay] = useState(false)
 
@@ -20,9 +37,10 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
 
   useEffect(() => {
     if (!poolId && pools.length) {
-      // Open on a representative retail case rather than the safest one: a
-      // mid-cap pair at the 3% tolerance wallets routinely default to.
-      setPoolId(pools.find((p) => p.pool_id === 'uni-v2-pepe-weth')?.pool_id ?? pools[0].pool_id)
+      // Open on a case where the trade-off is actually visible: a Solana
+      // memecoin pair at the 3% tolerance wallets routinely default to, sized
+      // so the optimum lands strictly inside the range rather than on a bound.
+      setPoolId(pools.find((p) => p.pool_id === 'ray-bonk-sol')?.pool_id ?? pools[0].pool_id)
     }
   }, [pools, poolId])
 
@@ -46,12 +64,13 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
   }, [poolId, notional, slippage, privateRelay])
 
   const pool = useMemo(() => pools.find((p) => p.pool_id === poolId), [pools, poolId])
-  const grouped = useMemo(() => {
-    return {
-      ethereum: pools.filter((p) => p.chain === 'ethereum'),
+  const grouped = useMemo(
+    () => ({
       solana: pools.filter((p) => p.chain === 'solana'),
-    }
-  }, [pools])
+      ethereum: pools.filter((p) => p.chain === 'ethereum'),
+    }),
+    [pools],
+  )
 
   return (
     <Section
@@ -62,30 +81,38 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
     >
       <div className="grid gap-5 lg:grid-cols-[minmax(300px,340px)_1fr]">
         {/* ---------------- controls ---------------- */}
-        <div className="panel h-fit p-5 lg:sticky lg:top-20">
+        <Panel className="h-fit p-5 lg:sticky lg:top-20">
           <div className="eyebrow mb-4">Trade</div>
 
-          <label className="mb-1.5 block text-xs text-ink-dim" htmlFor="pool">
+          <Label htmlFor="pool" className="mb-1.5 text-xs font-normal text-ink-dim">
             Pool
-          </label>
-          <select id="pool" value={poolId} onChange={(e) => setPoolId(e.target.value)} className="mb-1">
-            <optgroup label="Ethereum">
-              {grouped.ethereum.map((p) => (
-                <option key={p.pool_id} value={p.pool_id}>
-                  {p.symbol} · {compactUsd(p.tvl_usd)} · {p.fee_bps}bp
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Solana">
-              {grouped.solana.map((p) => (
-                <option key={p.pool_id} value={p.pool_id}>
-                  {p.symbol} · {compactUsd(p.tvl_usd)} · {p.fee_bps}bp
-                </option>
-              ))}
-            </optgroup>
-          </select>
+          </Label>
+          <Select value={poolId} onValueChange={setPoolId}>
+            <SelectTrigger id="pool" className="num w-full border-line bg-void text-sm">
+              <SelectValue placeholder="Select a pool" />
+            </SelectTrigger>
+            <SelectContent className="border-line bg-ground">
+              <SelectGroup>
+                <SelectLabel className="eyebrow">Solana</SelectLabel>
+                {grouped.solana.map((p) => (
+                  <SelectItem key={p.pool_id} value={p.pool_id} className="num text-xs">
+                    {p.symbol} · {compactUsd(p.tvl_usd)} · {p.fee_bps}bp
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectGroup>
+                <SelectLabel className="eyebrow">Ethereum</SelectLabel>
+                {grouped.ethereum.map((p) => (
+                  <SelectItem key={p.pool_id} value={p.pool_id} className="num text-xs">
+                    {p.symbol} · {compactUsd(p.tvl_usd)} · {p.fee_bps}bp
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
           {pool && (
-            <div className="mb-5 flex flex-wrap gap-1.5 pt-2">
+            <div className="mt-2 mb-5 flex flex-wrap gap-1.5">
               <Badge>{pool.venue}</Badge>
               <Badge tone={pool.volatility_24h > 0.15 ? 'warn' : 'neutral'}>
                 σ {pct(pool.volatility_24h, 1)}/day
@@ -94,127 +121,110 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
             </div>
           )}
 
-          <label className="mb-1.5 flex items-baseline justify-between text-xs text-ink-dim" htmlFor="size">
-            <span>Trade size</span>
-            <span className="num text-ink">{usd(notional, 0)}</span>
-          </label>
-          <input
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <Label htmlFor="size" className="text-xs font-normal text-ink-dim">
+              Trade size
+            </Label>
+            <span className="num text-xs text-ink">{usd(notional, 0)}</span>
+          </div>
+          <Slider
             id="size"
-            type="range"
             min={Math.log(100)}
             max={Math.log(2_000_000)}
             step={0.01}
-            value={Math.log(notional)}
-            onChange={(e) => setNotional(Math.round(Math.exp(Number(e.target.value))))}
-            className="mb-2"
+            value={[Math.log(notional)]}
+            onValueChange={([v]) => setNotional(Math.round(Math.exp(v)))}
+            className="mb-3"
           />
-          <div className="mb-5 flex gap-1.5">
-            {SIZE_PRESETS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setNotional(s)}
-                className={`num flex-1 rounded-md border px-1.5 py-1 text-[0.6875rem] transition-colors ${
-                  notional === s
-                    ? 'border-ink-faint bg-raised text-ink'
-                    : 'border-line text-ink-faint hover:border-line-bright hover:text-ink-dim'
-                }`}
-              >
-                {compactUsd(s)}
-              </button>
-            ))}
-          </div>
+          <PresetRow
+            options={SIZE_PRESETS}
+            current={notional}
+            onSelect={setNotional}
+            format={compactUsd}
+          />
 
-          <label className="mb-1.5 flex items-baseline justify-between text-xs text-ink-dim" htmlFor="slip">
-            <span>Your slippage tolerance</span>
-            <span className="num text-ink">{bps(slippage)}</span>
-          </label>
-          <input
+          <div className="mt-5 mb-1.5 flex items-baseline justify-between">
+            <Label htmlFor="slip" className="text-xs font-normal text-ink-dim">
+              Your slippage tolerance
+            </Label>
+            <span className="num text-xs text-ink">{bps(slippage)}</span>
+          </div>
+          <Slider
             id="slip"
-            type="range"
             min={Math.log(5)}
             max={Math.log(2000)}
             step={0.01}
-            value={Math.log(slippage)}
-            onChange={(e) => setSlippage(Math.round(Math.exp(Number(e.target.value))))}
-            className="mb-2"
+            value={[Math.log(slippage)]}
+            onValueChange={([v]) => setSlippage(Math.round(Math.exp(v)))}
+            className="mb-3"
           />
-          <div className="mb-5 flex gap-1.5">
-            {SLIPPAGE_PRESETS.map((s) => (
-              <button
-                key={s}
-                onClick={() => setSlippage(s)}
-                className={`num flex-1 rounded-md border px-1 py-1 text-[0.6875rem] transition-colors ${
-                  slippage === s
-                    ? 'border-ink-faint bg-raised text-ink'
-                    : 'border-line text-ink-faint hover:border-line-bright hover:text-ink-dim'
-                }`}
-              >
-                {s < 100 ? `${s}bp` : `${s / 100}%`}
-              </button>
-            ))}
-          </div>
+          <PresetRow
+            options={SLIPPAGE_PRESETS}
+            current={slippage}
+            onSelect={setSlippage}
+            format={(s) => (s < 100 ? `${s}bp` : `${s / 100}%`)}
+          />
 
-          <button
-            onClick={() => setPrivateRelay((v) => !v)}
-            className={`flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors ${
-              privateRelay ? 'border-cool/40 bg-cool/8' : 'border-line hover:border-line-bright'
-            }`}
+          <label
+            htmlFor="relay"
+            className={cn(
+              'mt-5 flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 transition-colors',
+              privateRelay ? 'border-cool/40 bg-cool/10' : 'border-line hover:border-line-bright',
+            )}
           >
             <span>
-              <span className={`block text-xs font-medium ${privateRelay ? 'text-cool' : 'text-ink'}`}>
+              <span className={cn('block text-xs font-medium', privateRelay ? 'text-cool' : 'text-ink')}>
                 Private orderflow
               </span>
               <span className="block text-[0.6875rem] text-ink-faint">
                 {pool?.chain === 'solana' ? 'Jito bundle / private RPC' : 'Flashbots Protect'}
               </span>
             </span>
-            <span
-              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
-                privateRelay ? 'bg-cool' : 'bg-line-bright'
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-4 w-4 rounded-full bg-void transition-transform ${
-                  privateRelay ? 'translate-x-4.5' : 'translate-x-0.5'
-                }`}
-              />
-            </span>
-          </button>
+            <Switch
+              id="relay"
+              checked={privateRelay}
+              onCheckedChange={setPrivateRelay}
+              className="data-[state=checked]:bg-cool"
+            />
+          </label>
 
           {result && (
-            <div className="mt-5 space-y-2 border-t border-line pt-4 text-[0.6875rem] text-ink-faint">
-              <Row label={result.market.cost_label} value={usd(result.market.attack_cost_usd)} />
-              <Row label="Your gas per attempt" value={usd(result.market.user_gas_usd)} />
-              <Row
-                label="Exposure window"
-                value={`${(result.market.block_time_s * result.market.inclusion_blocks).toFixed(1)}s`}
-              />
-              {result.market.gas_gwei && <Row label="Base fee" value={`${result.market.gas_gwei} gwei`} />}
-            </div>
+            <>
+              <Separator className="my-4 bg-line" />
+              <div className="space-y-2 text-[0.6875rem] text-ink-faint">
+                <Row label={result.market.cost_label} value={usd(result.market.attack_cost_usd)} />
+                <Row label="Your gas per attempt" value={usd(result.market.user_gas_usd)} />
+                <Row
+                  label="Exposure window"
+                  value={`${(result.market.block_time_s * result.market.inclusion_blocks).toFixed(1)}s`}
+                />
+                {result.market.gas_gwei && <Row label="Base fee" value={`${result.market.gas_gwei} gwei`} />}
+              </div>
+            </>
           )}
-        </div>
+        </Panel>
 
         {/* ---------------- results ---------------- */}
         <div className="min-w-0 space-y-5">
           {error && (
-            <div className="panel border-hot/40 p-5 text-sm text-hot">
+            <Panel className="border-hot/40 p-5 text-sm text-hot">
               Could not reach the risk API. Is the backend running on port 8000?
               <div className="mt-2 font-mono text-xs text-ink-faint">{error}</div>
-            </div>
+            </Panel>
           )}
 
           {!result && !error && (
             <>
-              <Skeleton className="h-40" />
-              <Skeleton className="h-80" />
+              <Skeleton className="h-40 bg-line/60" />
+              <Skeleton className="h-80 bg-line/60" />
             </>
           )}
 
           {result && (
-            <div className={loading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
+            <div className={cn('transition-opacity', loading && 'opacity-60')}>
               <Verdict result={result} onApply={(b) => setSlippage(Math.round(b))} />
 
-              <div className="panel mt-5 p-5">
+              <Panel className="mt-5 p-5">
                 <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
                   <div>
                     <div className="eyebrow mb-1">The sweet spot</div>
@@ -224,9 +234,20 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                     <div className="num text-3xl font-semibold text-cool">
                       {bps(result.sweet_spot.slippage_bps)}
                     </div>
-                    <div className="text-[0.6875rem] text-ink-faint">recommended tolerance</div>
+                    <div className="text-[0.6875rem] text-ink-faint">
+                      {result.sweet_spot.at_grid_floor
+                        ? 'as tight as your wallet allows'
+                        : 'recommended tolerance'}
+                    </div>
                   </div>
                 </div>
+                {result.sweet_spot.at_grid_floor && (
+                  <p className="mb-3 rounded-lg border border-warn/25 bg-warn/8 px-3 py-2 text-xs leading-relaxed text-warn">
+                    Every tolerance in range is worth attacking here, so the objective just wants the smallest
+                    one — this is a floor, not a fine-tuned number. The real levers are private routing and
+                    splitting the order.
+                  </p>
+                )}
                 <CostCurve
                   curve={result.sweet_spot.curve}
                   baselineUsd={result.sweet_spot.baseline_impact_usd}
@@ -234,7 +255,7 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                   recommendedBps={result.sweet_spot.slippage_bps}
                   criticalBps={result.economics.critical_slippage_bps}
                 />
-              </div>
+              </Panel>
 
               <div className="mt-5 grid gap-5 md:grid-cols-2">
                 <AttackerLedger result={result} />
@@ -248,6 +269,39 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
         </div>
       </div>
     </Section>
+  )
+}
+
+function PresetRow<T extends number>({
+  options,
+  current,
+  onSelect,
+  format,
+}: {
+  options: T[]
+  current: number
+  onSelect: (v: T) => void
+  format: (v: T) => string
+}) {
+  return (
+    <div className="flex gap-1.5">
+      {options.map((o) => (
+        <Button
+          key={o}
+          variant="outline"
+          size="sm"
+          onClick={() => onSelect(o)}
+          className={cn(
+            'num h-7 flex-1 px-1 text-[0.6875rem] font-normal',
+            current === o
+              ? 'border-ink-faint bg-raised text-ink'
+              : 'border-line bg-transparent text-ink-faint hover:border-line-bright hover:bg-raised hover:text-ink-dim',
+          )}
+        >
+          {format(o)}
+        </Button>
+      ))}
+    </div>
   )
 }
 
@@ -267,21 +321,19 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
   const saving = sweet_spot.savings_vs_current_usd
 
   return (
-    <div className="panel overflow-hidden">
+    <Panel className="overflow-hidden">
       <div className="grid gap-px bg-line sm:grid-cols-[1.15fr_1fr_1fr]">
         <div className={`bg-ground p-5 bg-risk-${band}`}>
           <div className="eyebrow mb-2">Sandwich probability</div>
-          <div className="flex items-baseline gap-2.5">
-            <span className={`num text-[2.75rem] leading-none font-semibold risk-${band}`}>
-              {(risk.p_attack * 100).toFixed(1)}
-              <span className="text-xl">%</span>
-            </span>
+          <div className={`num text-[2.75rem] leading-none font-semibold risk-${band}`}>
+            {(risk.p_attack * 100).toFixed(1)}
+            <span className="text-xl">%</span>
           </div>
           <div className={`mt-2 text-xs font-medium uppercase tracking-wider risk-${band}`}>{band} risk</div>
           <p className="mt-3 text-xs leading-relaxed text-ink-dim">
             {economics.attack_is_profitable
               ? `A searcher nets ${usd(economics.attacker_profit_usd)} from this trade at your current tolerance.`
-              : `A sandwich on this trade loses a searcher money, so the attack is not worth running.`}
+              : 'A sandwich on this trade loses a searcher money, so the attack is not worth running.'}
           </p>
         </div>
 
@@ -310,48 +362,51 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
             size="lg"
             sub="per trade, expected"
           />
-          <button
+          <Button
             onClick={() => onApply(sweet_spot.slippage_bps)}
-            className="mt-4 w-full rounded-lg border border-cool/40 bg-cool/10 px-3 py-2 text-xs font-medium text-cool transition-colors hover:bg-cool/20"
+            variant="outline"
+            className="mt-4 w-full border-cool/40 bg-cool/10 text-xs font-medium text-cool hover:bg-cool/20 hover:text-cool"
           >
             Apply {bps(sweet_spot.slippage_bps)} →
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </Panel>
   )
 }
 
 /** The searcher's P&L on your trade -- the number that decides whether they act. */
 function AttackerLedger({ result }: { result: Analysis }) {
   const e = result.economics
-  const rows = [
-    { label: 'Front-run size', value: usd(e.frontrun_size_usd), tone: 'text-ink-dim' },
-    { label: 'Gross extraction', value: usd(e.attacker_revenue_usd), tone: 'text-ink-dim' },
-    { label: `Less ${result.market.cost_label}`, value: `-${usd(e.attack_cost_usd)}`, tone: 'text-ink-faint' },
-  ]
 
   return (
-    <div className="panel p-5">
+    <Panel className="p-5">
       <div className="eyebrow mb-1">Searcher's ledger</div>
       <h3 className="mb-4 text-base font-semibold">What the bot makes on you</h3>
 
       <div className="space-y-2.5">
-        {rows.map((r) => (
+        {[
+          { label: 'Front-run size', value: usd(e.frontrun_size_usd) },
+          { label: 'Gross extraction', value: usd(e.attacker_revenue_usd) },
+          { label: `Less ${result.market.cost_label}`, value: `-${usd(e.attack_cost_usd)}` },
+        ].map((r) => (
           <div key={r.label} className="flex items-baseline justify-between gap-3 text-sm">
             <span className="text-ink-dim">{r.label}</span>
-            <span className={`num ${r.tone}`}>{r.value}</span>
+            <span className="num text-ink-dim">{r.value}</span>
           </div>
         ))}
-        <div className="flex items-baseline justify-between gap-3 border-t border-line pt-2.5 text-sm">
+        <Separator className="bg-line" />
+        <div className="flex items-baseline justify-between gap-3 text-sm">
           <span className="font-medium">Net profit</span>
-          <span className={`num font-semibold ${e.attacker_profit_usd > 0 ? 'text-hot' : 'text-cool'}`}>
+          <span className={cn('num font-semibold', e.attacker_profit_usd > 0 ? 'text-hot' : 'text-cool')}>
             {usd(e.attacker_profit_usd)}
           </span>
         </div>
       </div>
 
-      <div className="mt-5 space-y-3 border-t border-line pt-4">
+      <Separator className="my-4 bg-line" />
+
+      <div className="space-y-3">
         <div>
           <div className="mb-1.5 flex items-baseline justify-between text-xs">
             <span className="text-ink-dim">Your loss if sandwiched</span>
@@ -359,26 +414,62 @@ function AttackerLedger({ result }: { result: Analysis }) {
               {usd(e.victim_loss_usd)} · {bps(e.victim_loss_bps)}
             </span>
           </div>
-          <Bar value={e.victim_loss_usd} max={Math.max(e.victim_loss_usd, result.input.notional_usd * 0.05)} tone="hot" />
+          <Bar
+            value={e.victim_loss_usd}
+            max={Math.max(e.victim_loss_usd, result.input.notional_usd * 0.05)}
+            tone="hot"
+          />
         </div>
-        <div className="flex items-baseline justify-between text-xs">
-          <span className="text-ink-dim">Front-run budget your tolerance allows</span>
-          <span className="num text-ink-dim">{usd(e.frontrun_capacity_usd)}</span>
-        </div>
-        <div className="flex items-baseline justify-between text-xs">
-          <span className="text-ink-dim">Attack breaks even at</span>
-          <span className="num text-warn">
-            {e.critical_slippage_bps >= 4999 ? 'never' : bps(e.critical_slippage_bps)}
-          </span>
-        </div>
-        <div className="flex items-baseline justify-between text-xs">
-          <span className="text-ink-dim">Unavoidable fee &amp; price impact</span>
-          <span className="num text-ink-dim">
-            {usd(e.baseline_impact_usd)} · {bps(e.price_impact_bps)}
-          </span>
-        </div>
+        <Metric
+          label="Front-run budget your tolerance allows"
+          value={usd(e.frontrun_capacity_usd)}
+          hint="The largest front-run that still leaves your trade inside its minAmountOut. Closed-form root of the constant-product curve."
+        />
+        <Metric
+          label="Attack breaks even at"
+          value={e.critical_slippage_bps >= 4999 ? 'never' : bps(e.critical_slippage_bps)}
+          tone="text-warn"
+          hint="Below this tolerance the sandwich cannot cover the searcher's own gas and fees, so it stops being worth running."
+        />
+        <Metric
+          label="Unavoidable fee & price impact"
+          value={`${usd(e.baseline_impact_usd)} · ${bps(e.price_impact_bps)}`}
+          hint="What the swap costs with no MEV at all. Independent of your slippage setting."
+        />
       </div>
+    </Panel>
+  )
+}
+
+function Metric({
+  label,
+  value,
+  hint,
+  tone = 'text-ink-dim',
+}: {
+  label: string
+  value: string
+  hint?: string
+  tone?: string
+}) {
+  const row = (
+    <div className="flex items-baseline justify-between gap-3 text-xs">
+      <span className={cn('text-ink-dim', hint && 'decoration-line-bright underline-offset-4 hover:underline')}>
+        {label}
+      </span>
+      <span className={cn('num', tone)}>{value}</span>
     </div>
+  )
+  if (!hint) return row
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="cursor-help">{row}</div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-[260px] border border-line-bright bg-void text-ink">
+        {hint}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -388,7 +479,7 @@ function Drivers({ result }: { result: Analysis }) {
   const max = Math.max(...drivers.map((d) => Math.abs(d.delta)), 0.01)
 
   return (
-    <div className="panel p-5">
+    <Panel className="p-5">
       <div className="eyebrow mb-1">Model attribution</div>
       <h3 className="mb-1 text-base font-semibold">Why this score</h3>
       <p className="mb-4 text-xs text-ink-faint">
@@ -405,11 +496,12 @@ function Drivers({ result }: { result: Analysis }) {
             <div key={d.feature}>
               <div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
                 <span className="text-ink-dim">{d.label}</span>
-                <span className={`num ${d.delta > 0 ? 'text-hot' : 'text-cool'}`}>
+                <span className={cn('num', d.delta > 0 ? 'text-hot' : 'text-cool')}>
                   {d.delta > 0 ? '+' : ''}
                   {(d.delta * 100).toFixed(1)}pp
                 </span>
               </div>
+              {/* diverging bar: reduces risk to the left, increases to the right */}
               <div className="flex h-1.5 overflow-hidden rounded-full bg-line">
                 <div className="flex w-1/2 justify-end">
                   {d.delta < 0 && (
@@ -421,7 +513,10 @@ function Drivers({ result }: { result: Analysis }) {
                 </div>
                 <div className="flex w-1/2">
                   {d.delta > 0 && (
-                    <div className="h-full rounded-r-full bg-hot" style={{ width: `${(d.delta / max) * 100}%` }} />
+                    <div
+                      className="h-full rounded-r-full bg-hot"
+                      style={{ width: `${(d.delta / max) * 100}%` }}
+                    />
                   )}
                 </div>
               </div>
@@ -430,21 +525,13 @@ function Drivers({ result }: { result: Analysis }) {
         </div>
       )}
 
-      <div className="mt-5 border-t border-line pt-4 text-[0.6875rem] text-ink-faint">
-        <div className="flex justify-between">
-          <span>Searcher presence (latent)</span>
-          <span className="num">{pct(result.risk.searcher_presence)}</span>
-        </div>
-        <div className="mt-1.5 flex justify-between">
-          <span>Revert probability at your tolerance</span>
-          <span className="num">{pct(result.risk.p_revert)}</span>
-        </div>
-        <div className="mt-1.5 flex justify-between">
-          <span>Loss if attacked</span>
-          <span className="num">{bps(result.risk.expected_loss_bps_if_attacked)}</span>
-        </div>
+      <Separator className="my-4 bg-line" />
+      <div className="space-y-1.5 text-[0.6875rem] text-ink-faint">
+        <Row label="Searcher presence (latent)" value={pct(result.risk.searcher_presence)} />
+        <Row label="Revert probability at your tolerance" value={pct(result.risk.p_revert)} />
+        <Row label="Loss if attacked" value={bps(result.risk.expected_loss_bps_if_attacked)} />
       </div>
-    </div>
+    </Panel>
   )
 }
 
@@ -455,97 +542,96 @@ function SplitLadder({ result }: { result: Analysis }) {
   const maxCost = Math.max(...plans.map((p) => p.expected_cost_usd))
 
   return (
-    <div className="panel mt-5 p-5">
+    <Panel className="mt-5 p-5">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="eyebrow mb-1">Order splitting</div>
           <h3 className="text-base font-semibold">Break the trade into smaller pieces</h3>
           <p className="mt-1 max-w-2xl text-xs text-ink-faint">
-            A searcher's profit falls faster than trade size, so several small victims can each be worth less than
-            the bundle costs to run. You pay for it in gas and time exposure.
+            A searcher's profit falls faster than trade size, so several small victims can each be worth less
+            than the bundle costs to run. You pay for it in gas and time exposure.
           </p>
         </div>
-        {result.split.savings_usd > 0.5 && (
-          <Badge tone="cool">saves {usd(result.split.savings_usd)}</Badge>
-        )}
+        {result.split.savings_usd > 0.5 && <Badge tone="cool">saves {usd(result.split.savings_usd)}</Badge>}
       </div>
 
       <div className="-mx-5 overflow-x-auto px-5">
-        <table className="w-full min-w-[620px] text-sm">
-          <thead>
-            <tr className="border-b border-line text-left">
+        <Table className="min-w-[620px]">
+          <TableHeader>
+            <TableRow className="border-line hover:bg-transparent">
               {['Chunks', 'Each', 'Slippage', 'Attacker profit', 'Extra gas', 'Timing risk', 'Expected cost'].map(
-                (h) => (
-                  <th key={h} className="eyebrow pb-2 font-normal last:text-right">
+                (h, i, arr) => (
+                  <TableHead
+                    key={h}
+                    className={cn('eyebrow h-auto pb-2 font-normal', i === arr.length - 1 && 'text-right')}
+                  >
                     {h}
-                  </th>
+                  </TableHead>
                 ),
               )}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {plans.map((p) => {
               const isBest = p.chunks === best
               return (
-                <tr
+                <TableRow
                   key={p.chunks}
-                  className={`border-b border-line/60 last:border-0 ${isBest ? 'bg-cool/6' : ''}`}
+                  className={cn('border-line/60 hover:bg-raised/40', isBest && 'bg-cool/6')}
                 >
-                  <td className="py-2.5">
-                    <span className={`num ${isBest ? 'font-semibold text-cool' : 'text-ink'}`}>
-                      {p.chunks}
-                      {isBest && <span className="ml-2 text-[0.625rem] uppercase tracking-wider">best</span>}
-                    </span>
-                  </td>
-                  <td className="num py-2.5 text-ink-dim">{usd(p.chunk_size_usd, 0)}</td>
-                  <td className="num py-2.5 text-ink-dim">{bps(p.slippage_bps)}</td>
-                  <td
-                    className={`num py-2.5 ${p.attacker_profit_per_chunk_usd > 0 ? 'text-hot' : 'text-cool'}`}
+                  <TableCell className={cn('num', isBest ? 'font-semibold text-cool' : 'text-ink')}>
+                    {p.chunks}
+                    {isBest && <span className="ml-2 text-[0.625rem] uppercase tracking-wider">best</span>}
+                  </TableCell>
+                  <TableCell className="num text-ink-dim">{usd(p.chunk_size_usd, 0)}</TableCell>
+                  <TableCell className="num text-ink-dim">{bps(p.slippage_bps)}</TableCell>
+                  <TableCell
+                    className={cn('num', p.attacker_profit_per_chunk_usd > 0 ? 'text-hot' : 'text-cool')}
                   >
                     {usd(p.attacker_profit_per_chunk_usd)}
-                  </td>
-                  <td className="num py-2.5 text-ink-faint">{usd(p.gas_overhead_usd)}</td>
-                  <td className="num py-2.5 text-ink-faint">{usd(p.timing_risk_usd)}</td>
-                  <td className="py-2.5 text-right">
+                  </TableCell>
+                  <TableCell className="num text-ink-faint">{usd(p.gas_overhead_usd)}</TableCell>
+                  <TableCell className="num text-ink-faint">{usd(p.timing_risk_usd)}</TableCell>
+                  <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2.5">
                       <div className="hidden w-20 sm:block">
                         <Bar value={p.expected_cost_usd} max={maxCost} tone={isBest ? 'cool' : 'hot'} />
                       </div>
-                      <span className={`num ${isBest ? 'font-semibold text-cool' : 'text-ink-dim'}`}>
+                      <span className={cn('num', isBest ? 'font-semibold text-cool' : 'text-ink-dim')}>
                         {usd(p.expected_cost_usd)}
                       </span>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
-    </div>
+    </Panel>
   )
 }
 
-function Recommendations({ result }: { result: Analysis }) {
-  const tones = {
-    action: { badge: 'cool' as const, label: 'Do this' },
-    warning: { badge: 'warn' as const, label: 'Watch out' },
-    good: { badge: 'info' as const, label: 'All clear' },
-  }
+const REC_TONES = {
+  action: { badge: 'cool' as const, label: 'Do this' },
+  warning: { badge: 'warn' as const, label: 'Watch out' },
+  good: { badge: 'info' as const, label: 'All clear' },
+}
 
+function Recommendations({ result }: { result: Analysis }) {
   return (
     <div className="mt-5 grid gap-4 md:grid-cols-2">
       {result.recommendations.map((r, i) => (
-        <div key={i} className="panel p-5">
+        <Panel key={i} className="p-5">
           <div className="mb-2.5 flex items-center justify-between gap-3">
-            <Badge tone={tones[r.severity].badge}>{tones[r.severity].label}</Badge>
+            <Badge tone={REC_TONES[r.severity].badge}>{REC_TONES[r.severity].label}</Badge>
             {r.impact_usd > 0.01 && (
               <span className="num text-sm font-semibold text-cool">{usd(r.impact_usd)}</span>
             )}
           </div>
           <h4 className="mb-1.5 text-sm font-semibold">{r.title}</h4>
           <p className="text-xs leading-relaxed text-ink-dim">{r.detail}</p>
-        </div>
+        </Panel>
       ))}
     </div>
   )

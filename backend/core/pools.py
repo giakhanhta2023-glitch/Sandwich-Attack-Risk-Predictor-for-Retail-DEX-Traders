@@ -56,10 +56,16 @@ def _registry() -> dict[str, dict[str, Any]]:
 
 
 def list_pools(chain: Literal["all", "ethereum", "solana"] = "all") -> list[dict[str, Any]]:
+    """Pools for the UI, Solana first.
+
+    Solana leads because it is the source that runs live on a free Helius key,
+    so the default view is the one a reader can actually reproduce against the
+    chain rather than the one that needs a GCP billing account.
+    """
     pools = list(_registry().values())
     if chain != "all":
         pools = [p for p in pools if p["chain"] == chain]
-    return sorted(pools, key=lambda p: (-p["tvl_usd"]))
+    return sorted(pools, key=lambda p: (p["chain"] != "solana", -p["tvl_usd"]))
 
 
 def get_pool(pool_id: str) -> dict[str, Any] | None:
