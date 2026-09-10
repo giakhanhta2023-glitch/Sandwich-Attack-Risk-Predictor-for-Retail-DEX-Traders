@@ -24,13 +24,15 @@ attacker's budget.
 
 ## What this does
 
-1. **Ingests swaps** from Helius (Solana, the primary source) and BigQuery
-   (Ethereum), with execution ordering preserved, because a sandwich is defined
-   entirely by ordering.
-2. **Detects and labels** sandwiches by matching front-run/victim/back-run triples and
-   reconstructing what the victim *would* have received.
-3. **Predicts risk** with a calibrated gradient-boosted classifier, plus a severity
-   model for loss magnitude.
+1. **Watches Solana mainnet every minute.** A scheduled Supabase Edge Function reads
+   the newest blocks, finds every DEX swap from the pools' side, and records detected
+   sandwiches plus a training sample. Anyone can watch it work at
+   [`/live`](https://sandwich-attack-risk-predictor-for.vercel.app/live).
+2. **Detects and labels** sandwiches by matching front-run/victim/back-run triples —
+   one wallet on both legs, the back-run unwinding the front-run, a victim in between,
+   all inside one validator's leader window, and a round trip that made money.
+3. **Predicts risk** from real mainnet flow once enough attacks have been recorded, with
+   a simulator-trained gradient-boosted classifier as the fallback until then.
 4. **Solves for the sweet spot** — the slippage tolerance minimising expected cost —
    and for whether splitting the order into chunks beats executing it whole.
 
@@ -98,6 +100,58 @@ market risk for the duration, both of which are charged in the objective.
 
 ---
 
+## Live mainnet data
+
+```
+pg_cron, every minute ──> solana-ingest Edge Function ──> Supabase Postgres
+                                                           ├─ sandwich_events      every detection
+                                                           ├─ pool_activity_daily  swaps and attacks per pool
+                                                           ├─ swap_samples         the training sample
+                                                           └─ ingest_runs          what each scan covered
+GitHub Actions, every 6h ──> train_live.py ──> backend/artifacts/live_model.json ──> Vercel redeploy
+```
+
+**Scanning.** Each run reads the two most recent complete leader windows (8 slots). A
+full block is ~6MB and Solana produces ~2.5 a second, so no free tier can read every
+block: this is a rolling sample of the newest ones, roughly 5% of all blocks. Every run
+records exactly what it covered and why any block was missed, and `/live` shows it.
+
+**Labelling.** A sandwich is one wallet moving a pool vault one way and back by the same
+amount (±3%), another wallet trading the same way in between, both legs inside one
+validator's leader window (only a leader can order transactions across its own slots),
+and a profitable round trip valued from the pool's side. A window with a missing block
+could hide one leg of an attack, so its swaps are kept out of the training sample and
+the per-pool rates.
+
+**Sampling.** Every victim swap is kept; other swaps are kept at 2% with a weight of 50,
+so weighted statistics describe the real population rather than the sample.
+
+**Training.** `python -m backend.ml.train_live` fits a weighted logistic regression on
+seven observable features — trade size, pool depth, size relative to depth, direction,
+time of day, quote asset — scores it on a chronological holdout, and exports the
+coefficients as JSON. Serving is plain arithmetic, so it runs on Vercel without
+scikit-learn. A scheduled GitHub Action retrains every six hours and commits the new
+artifact once there is enough data (300 rows and 30 victims).
+
+**Taking over.** For Solana pools the mainnet model sets the headline probability once
+it has seen 100 real victims and scores an AUC of at least 0.6 on its holdout. Until then
+the analyser shows its figure next to the simulator's, marked as still training.
+Slippage tolerance is invisible on-chain, so the model estimates risk at the tolerances
+real traders actually use; the closed-form economics carry that across the slippage sweep.
+
+**Helius.** Without a key the function uses the public mainnet RPC, which rate-limits
+and drops blocks. With one, every scan is complete. Set it as an Edge Function secret —
+never in the repo:
+
+```bash
+supabase secrets set HELIUS_API_KEY=<your key> --project-ref zhmgaubrpkbooabztajo
+```
+
+or in the Supabase dashboard under Edge Functions → Secrets. No redeploy is needed; runs
+switch to Helius within a few minutes, and `/live` shows the provider in use.
+
+---
+
 ## Design rules
 
 The interface is a trading surface, not a landing page, and the CSS layer
@@ -132,9 +186,10 @@ output and `api/index.py` as a Python function wrapping the FastAPI app.
 The deployed function does **not** carry scikit-learn. The full stack is ~370MB
 unpacked against a 250MB function limit, so the serving path was restructured to
 need none of it — feature medians and corpus aggregates are precomputed at
-training time into small JSON files. Sandwich probability therefore comes from
-the closed-form economics rather than the calibrated model, and the site says so
-in a banner on the model card. Everything else — the AMM math, the sweet-spot
+training time into small JSON files. Until the mainnet model takes over (it is
+served as plain arithmetic), sandwich probability in production comes from the
+closed-form economics rather than the calibrated model, and the site says which
+one produced every number. Everything else — the AMM math, the sweet-spot
 optimiser, the split ladder, the corpus — is identical to a local run.
 
 To run the trained model in production you need a host that fits a ~210MB
@@ -142,11 +197,11 @@ Python runtime (Fly, Render, Railway, a container on Cloud Run). Point the
 frontend at it with `VITE_API_TARGET`; nothing else changes, because the
 predictor loads the artifacts whenever scikit-learn is importable.
 
-Environment variables are set in the Vercel dashboard, not in the repo. To turn
-the database on there, add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`
-(the publishable key is RLS-constrained and safe to expose). Leave them unset
-and the app falls back to the static pool registry, which is what it currently
-does in production.
+The Supabase URL and publishable key are public by design — RLS limits them to
+`SELECT` on research tables — so they ship in `backend/public.env` and
+`frontend/.env.production`, and every deployment reads live data with no
+configuration. Real environment variables and `.env` override them. Secrets (the
+service-role key, the Helius key) never go in the repo.
 
 Two platform behaviours worth recording, both of which cost a debugging cycle:
 
@@ -164,6 +219,7 @@ Two platform behaviours worth recording, both of which cost a debugging cycle:
 ```bash
 pip install -r backend/requirements.txt
 python -m backend.ml.train                 # builds model artifacts (~2 min)
+python -m backend.ml.train_live            # trains on real mainnet samples, when there are enough
 uvicorn backend.app.main:app --port 8000
 ```
 
@@ -179,23 +235,27 @@ python -m pytest tests -q
 
 ### Database
 
-Schema lives in Supabase Postgres (six tables, three aggregate views):
+Schema lives in Supabase Postgres (nine tables, five views):
 
 | Table | Holds |
 |---|---|
 | `pools` | pool registry — TVL, fee tier, volatility; refreshable without a redeploy |
 | `swaps` | normalised swap stream with execution ordering preserved |
-| `sandwich_events` | detected attacks with the victim's counterfactual output |
+| `sandwich_events` | every sandwich detected on mainnet, with Solscan-linkable signatures |
+| `swap_samples` | the live training sample: every victim, 2% of everything else, weighted |
+| `pool_activity_daily` | swaps and sandwiches per pool per day, from fully read windows |
+| `ingest_runs` | one row per scan — slots covered, blocks read, lag, and why any were missed |
 | `ingestion_cursors` | per-source watermarks so pulls resume instead of rescanning |
 | `analyses` | every risk query and what was recommended |
 | `model_runs` | training metrics over time, so drift is visible |
 
-`swaps` and `sandwich_events` are the point of the whole thing: each live pull
-appends to them, which is how the corpus stops being simulated and starts being
-measured.
+`sandwich_events`, `swap_samples` and `pool_activity_daily` are filled every minute by
+the live pipeline, which is how the corpus stops being simulated and starts being
+measured. Retention runs daily: analyses 180 days, runs 14, samples 30, pool counts 90;
+detections are kept.
 
 **Security.** RLS is on for every table, and grants are separate from policies —
-`anon` gets `SELECT` on the four public research tables and nothing else. There
+`anon` gets `SELECT` on the public research tables and live views and nothing else. There
 is no public write path anywhere; ingestion and telemetry go through the service
 role. `analyses` (query telemetry) and `ingestion_cursors` (scheduler state) are
 denied at both the grant and policy layer.
@@ -216,10 +276,10 @@ After adding a service key, seed the registry once:
 curl -X POST http://localhost:8000/api/db/sync-pools
 ```
 
-### Live data (optional)
+### Local credentials (optional)
 
-Without credentials the project runs on a built-in simulator and labels every figure
-`simulated`. To use real chain data, create `.env` in the project root:
+The live pipeline runs inside Supabase and needs nothing locally. For the on-demand
+`/api/live/solana` endpoint and Ethereum ingestion, create `.env` in the project root:
 
 ```
 HELIUS_API_KEY=your-key            # Solana swaps + parsed transactions
@@ -247,11 +307,17 @@ backend/
   ingestion/synthetic.py     offline simulator for running without credentials
   ml/train.py           chronological split, isotonic calibration, model report
   ml/predictor.py       serving wrapper with per-prediction ablation attribution
+  ml/train_live.py      trains on the real mainnet sample; exports JSON coefficients
+  ml/live_model.py      serves that model as plain arithmetic (no scikit-learn)
+supabase/functions/solana-ingest/   the every-minute mainnet scanner (Edge Function)
+.github/workflows/retrain-live-model.yml   six-hourly retrain and commit
 frontend/
-  src/components/       Analyzer, CostCurve, AttackAnatomy, Insights
+  src/components/       Analyzer, CostCurve, AttackAnatomy, Insights, LiveDashboard, Legal
   src/components/ui/    shadcn/ui primitives (Radix + CVA)
+  src/lib/live.ts       read-only Supabase queries behind the /live dashboard
+  src/lib/router.tsx    path routing for /live, /terms and /privacy
   src/lib/utils.ts      cn() class merger
-tests/                  41 tests over the invariants, detector, optimiser and API
+tests/                  67 tests over the invariants, detector, optimiser, live model and API
 ```
 
 ## Tech stack
@@ -263,11 +329,11 @@ tests/                  41 tests over the invariants, detector, optimiser and AP
 | Design | Quantitative terminal: flat surfaces, 1px neutral-800 borders, 2px radius, Inter + JetBrains Mono, emerald/crimson only |
 | Charts | **Recharts** — cost curve, attack path, corpus bars, calibration scatter, feature importance |
 | Backend | FastAPI + Uvicorn, Pydantic v2 |
-| ML | scikit-learn — `HistGradientBoosting` classifier (isotonic-calibrated) + regressor |
+| ML | scikit-learn — `HistGradientBoosting` classifier (isotonic-calibrated) + regressor; weighted logistic regression on live mainnet samples |
 | Inference | In-process on the backend; models loaded once into a singleton |
 | Database | **Supabase Postgres** — pools, swaps, detected sandwiches, telemetry, model runs |
 | Storage | `joblib` model artifacts on disk; corpus in Postgres, Parquet as the offline fallback |
-| Chain data | **Solana via Helius** (primary), Ethereum via BigQuery `crypto_ethereum` |
+| Chain data | **Solana mainnet every minute** via a Supabase Edge Function (Helius with a key, public RPC without); Ethereum via BigQuery `crypto_ethereum` |
 
 The models run server-side rather than in the browser because six of the twenty features
 are computed by the AMM solver in `core/amm.py` — scoring in the client would mean
@@ -277,10 +343,12 @@ shipping both the math engine and a converted model just to reproduce one probab
 
 ## Honest limitations
 
-- **The shipped corpus is simulated.** Without credentials, training data comes from the
-  built-in simulator. Reported metrics describe how well the model recovers a known
-  generating process — they are *not* out-of-sample chain performance. The ingestion and
-  detection code paths are real and run against live data when configured.
+- **The gradient-boosted model is trained on the simulator.** Its reported metrics
+  describe how well it recovers a known generating process, not chain performance. Real
+  mainnet data trains the separate live model, which replaces it for Solana once proven.
+- **Live coverage is a sample, and the label is a lower bound.** Roughly 5% of blocks are
+  read, an attack is only seen when both legs fall inside a scanned leader window, and a
+  victim's loss is measured as the attacker's profit — a floor on what the victim lost.
 - **Detector accuracy is measured on clean input.** Precision and recall of 1.00 against
   simulator ground truth validate the implementation, not robustness to aggregator hops,
   multi-hop routes, or partially-filled bundles.
@@ -294,10 +362,10 @@ shipping both the math engine and a converted model just to reproduce one probab
   auction is a coin flip the features cannot observe, so no model reaches 1.0 on this
   label.
 - **Single-hop, single-pool.** Multi-hop routes and aggregator splits are not scored.
-- **The write path is unverified end to end.** Reads, RLS enforcement and the
-  degradation paths are tested against the live database, but inserts require a
-  service_role key that was deliberately never handled here. `insert_swaps` and
-  `insert_sandwich_events` are exercised only against their refusal behaviour.
+- **The Python write path is unverified end to end.** The live pipeline writes through
+  the service role Supabase injects into the Edge Function. The Python `insert_swaps` is
+  exercised only against its refusal behaviour, because a service-role key was
+  deliberately never handled here.
 - **Boundary solutions on Solana.** A failed Solana transaction costs a fraction of a
   cent, so once a trade is attackable at all the optimiser often wants the tightest
   tolerance in range. The API flags that case (`at_grid_floor`) and the UI says the

@@ -158,74 +158,93 @@ def market_snapshot(chain: str, hour: int) -> dict[str, Any]:
 # corpus statistics
 # --------------------------------------------------------------------------
 
-MIN_MEASURED_SWAPS = 1_000
+# The corpus view switches from the simulator to measured chain data only once
+# there is enough of it to be less noisy than what it replaces -- roughly an hour
+# of the live ingester. The live dashboard shows real data from the first run.
+MIN_MEASURED_SWAPS = 50_000
+MIN_MEASURED_SANDWICHES = 30
+
+# Display names for common Solana mints; anything else is shown abbreviated.
+KNOWN_MINTS = {
+    "So11111111111111111111111111111111111111112": "SOL",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v": "USDC",
+    "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB": "USDT",
+    "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": "BONK",
+    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": "WIF",
+    "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN": "JUP",
+    "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn": "JitoSOL",
+    "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So": "mSOL",
+    "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3": "PYTH",
+    "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R": "RAY",
+    "7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr": "POPCAT",
+    "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN": "TRUMP",
+}
+
+
+def mint_label(mint: str | None) -> str:
+    if not mint:
+        return "?"
+    return KNOWN_MINTS.get(mint, mint[:4] + "..." + mint[-4:])
 
 
 def _chain_corpus_stats() -> dict[str, Any] | None:
-    """Dashboard figures computed from stored chain data, when there is enough."""
-    from ..db.repository import counts, pool_risk_stats, severity_buckets
+    """Dashboard figures from the live Solana ingester, once there is enough."""
+    from ..db.repository import pool_risk_stats, size_buckets
 
-    row_counts = counts()
-    if row_counts.get("swaps", 0) < MIN_MEASURED_SWAPS:
+    pools = pool_risk_stats()
+    total_swaps = sum(int(r.get("swaps") or 0) for r in pools)
+    total_hits = sum(int(r.get("sandwiches") or 0) for r in pools)
+    if total_swaps < MIN_MEASURED_SWAPS or total_hits < MIN_MEASURED_SANDWICHES:
         return None
 
-    stats = pool_risk_stats()
-    if not stats:
-        return None
-
-    by_pool = sorted(
-        (
-            {
-                "pool_id": r["pool_id"],
-                "symbol": r.get("symbol", r["pool_id"]),
-                "chain": r.get("chain", "unknown"),
-                "venue": r.get("venue", ""),
-                "tvl_usd": float(r.get("tvl_usd") or 0),
-                "swaps": int(r.get("swaps") or 0),
-                "sandwiched": int(r.get("sandwiched") or 0),
-                "attack_rate": float(r.get("attack_rate") or 0),
-                "median_loss_bps": float(r.get("median_loss_bps") or 0),
-                "total_loss_usd": float(r.get("total_loss_usd") or 0),
-                "median_victim_size_usd": 0.0,
-            }
-            for r in stats
-        ),
-        key=lambda p: -p["attack_rate"],
-    )
-
-    total_swaps = sum(p["swaps"] for p in by_pool)
-    total_hits = sum(p["sandwiched"] for p in by_pool)
-    buckets = severity_buckets()
+    # Rank by attack rate, but only among pools with enough swaps for the rate to
+    # mean something -- one sandwich in three swaps is noise, not a finding.
+    ranked = sorted(
+        (r for r in pools if int(r.get("swaps") or 0) >= 200),
+        key=lambda r: -float(r.get("attack_rate") or 0),
+    )[:15]
+    by_pool = [
+        {
+            "pool_id": r["pool_key"],
+            "symbol": mint_label(r.get("base_mint")) + "/" + (r.get("quote_symbol") or mint_label(r.get("quote_mint"))),
+            "chain": "solana",
+            "venue": "measured on mainnet",
+            "tvl_usd": float(r.get("est_tvl_usd") or 0),
+            "swaps": int(r.get("swaps") or 0),
+            "sandwiched": int(r.get("sandwiches") or 0),
+            "attack_rate": float(r.get("attack_rate") or 0),
+            "median_loss_bps": float(r.get("median_loss_bps_lb") or 0),
+            "total_loss_usd": float(r.get("profit_usd") or 0),
+            "median_victim_size_usd": 0.0,
+        }
+        for r in ranked
+    ]
+    hit_pools = [p for p in by_pool if p["sandwiched"]]
 
     return {
         "available": True,
         "data_source": "chain",
         "total_swaps": total_swaps,
         "total_sandwiches": total_hits,
-        "overall_attack_rate": round(total_hits / total_swaps, 4) if total_swaps else 0.0,
-        "total_victim_loss_usd": round(sum(p["total_loss_usd"] for p in by_pool), 2),
-        "median_loss_bps": round(
-            sum(p["median_loss_bps"] for p in by_pool if p["sandwiched"])
-            / max(sum(1 for p in by_pool if p["sandwiched"]), 1), 1,
-        ),
+        "overall_attack_rate": round(total_hits / total_swaps, 5) if total_swaps else 0.0,
+        # attacker profit is measured exactly; the victims lost at least that much
+        "total_victim_loss_usd": round(sum(float(r.get("profit_usd") or 0) for r in pools), 2),
+        "median_loss_bps": round(sum(p["median_loss_bps"] for p in hit_pools) / max(len(hit_pools), 1), 1),
         "median_loss_usd": 0.0,
         "by_pool": by_pool,
-        # the tolerance a victim set is not observable on-chain, so the measured
-        # corpus reports realised loss severity instead of the slippage cut
-        "by_slippage": [
+        # A victim's slippage tolerance is not visible in balance changes, so the
+        # measured corpus has no tolerance cut; the UI hides that chart.
+        "by_slippage": [],
+        "by_size": [
             {
                 "bucket": b["bucket"],
-                "lower_bps": 0,
-                "upper_bps": 0,
-                "swaps": int(b.get("events") or 0),
-                "attack_rate": 0.0,
-                "median_loss_bps": float(b.get("avg_loss_usd") or 0),
+                "swaps": int(b.get("est_swaps") or 0),
+                "attack_rate": float(b.get("attack_rate") or 0),
+                "median_loss_usd": 0.0,
             }
-            for b in buckets
+            for b in size_buckets()
         ],
-        "by_size": [],
     }
-
 
 @lru_cache(maxsize=1)
 def corpus_stats() -> dict[str, Any]:

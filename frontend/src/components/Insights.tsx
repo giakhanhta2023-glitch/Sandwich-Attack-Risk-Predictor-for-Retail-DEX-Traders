@@ -18,6 +18,7 @@ import { Badge, Bar, LiveDot, Panel, Section, Skeleton, Stat } from './primitive
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Link } from '@/lib/router'
 import { cn } from '@/lib/utils'
 
 /** Corpus-level view: where sandwiches actually land. */
@@ -43,14 +44,29 @@ export function CorpusDashboard() {
   }
 
   const maxPoolRate = Math.max(...(stats.by_pool ?? []).map((p) => p.attack_rate), 0.01)
+  const measured = stats.data_source === 'chain'
+  const hasTolerance = (stats.by_slippage?.length ?? 0) > 0
 
   return (
     <Section
       id="corpus"
       className="!py-8"
-      eyebrow="Corpus"
+      eyebrow={measured ? 'Corpus · measured on Solana mainnet' : 'Corpus · simulated'}
       title="Risk is not spread evenly"
-      lede="Attack rates across the labelled corpus. The pattern is consistent: sandwiches concentrate where a wide tolerance meets a thin pool, and almost vanish where the pool's own fee tier costs the searcher more than the trade is worth."
+      lede={
+        measured ? (
+          'Attack rates measured by the live scanner over the last 7 days. Sandwiches concentrate in a small number of thin, volatile pools.'
+        ) : (
+          <>
+            Attack rates across the simulated training corpus: sandwiches concentrate where a wide tolerance meets a
+            thin pool. This switches to real measurements once the live scanner has collected enough swaps —{' '}
+            <Link to="/live" className="text-ink underline underline-offset-2">
+              see what it has found so far
+            </Link>
+            .
+          </>
+        )
+      }
     >
       <Panel className="mb-4 grid gap-px overflow-hidden bg-line sm:grid-cols-2 lg:grid-cols-4">
         <div className="bg-ground p-4">
@@ -72,7 +88,8 @@ export function CorpusDashboard() {
         </div>
       </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className={cn('grid gap-4', hasTolerance && 'lg:grid-cols-2')}>
+        {hasTolerance && (
         <Panel className="p-4">
           <div className="eyebrow mb-1">By tolerance</div>
           <h3 className="mb-1 text-base font-semibold">Attack rate vs the slippage you set</h3>
@@ -87,6 +104,7 @@ export function CorpusDashboard() {
             }))}
           />
         </Panel>
+        )}
 
         <Panel className="p-4">
           <div className="eyebrow mb-1">By trade size</div>

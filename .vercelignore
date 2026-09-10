@@ -4,6 +4,8 @@ frontend/dist
 frontend/node_modules
 backend/data
 tests
+supabase
+.github
 *.parquet
 .env
 .venv

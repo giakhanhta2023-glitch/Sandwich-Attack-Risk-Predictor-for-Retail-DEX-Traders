@@ -40,7 +40,8 @@ from ..core.pools import get_pool, list_pools, market_snapshot, refresh_registry
 from ..db import repository as repo
 from ..db.client import DatabaseUnavailable, db_status
 from ..ingestion.bigquery_eth import describe_queries
-from ..ml.predictor import get_predictor
+from ..ml import live_model
+from ..ml.predictor import get_predictor, risk_band
 from .config import settings
 
 app = FastAPI(
@@ -225,6 +226,60 @@ def methodology() -> dict[str, Any]:
     }
 
 
+# The model trained on live Solana flow only sets the headline probability once
+# it has seen enough real victims and scores well on a chronological holdout.
+# Below that it is reported next to the simulator's figure as provisional.
+LIVE_MIN_POSITIVES = 100
+LIVE_MIN_AUC = 0.6
+
+
+def _pool_quote(pool: dict[str, Any]) -> str:
+    """Quote asset from a registry symbol: 'BONK/SOL' -> SOL, 'SOL/USDC Whirlpool' -> USDC."""
+    return pool["symbol"].split("/")[-1].split()[0].upper()
+
+
+def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) -> dict[str, Any] | None:
+    """What real Solana mainnet flow says about a trade like this one.
+
+    The live model sees size, pool depth, direction, hour and quote asset -- all
+    observable on-chain -- but not the victim's slippage tolerance, which never
+    appears in balance changes. It estimates the risk for trades like this at the
+    tolerances real traders actually use; the closed-form economics then carry
+    that level across the slippage sweep.
+    """
+    if pool["chain"] != "solana":
+        return None
+    info = live_model.info()
+    if info is None:
+        return None
+    p = live_model.predict(
+        size_usd=req.notional_usd,
+        depth_usd=pool["tvl_usd"] / 2.0,  # quote-side depth of a balanced pool
+        side="buy",
+        hour_utc=hour,
+        quote_symbol=_pool_quote(pool),
+    )
+    if p is None:
+        return None
+    auc = (info.get("metrics") or {}).get("roc_auc")
+    positives = int(info.get("positives") or 0)
+    drives = positives >= LIVE_MIN_POSITIVES and auc is not None and auc >= LIVE_MIN_AUC
+    return {
+        "p_attack": round(p, 6),
+        "rows": info.get("rows"),
+        "positives": positives,
+        "weighted_swaps": info.get("weighted_swaps"),
+        "trained_at": info.get("trained_at"),
+        "window_end": (info.get("window") or {}).get("end"),
+        "roc_auc": auc,
+        "drives_headline": drives,
+        "why_provisional": None if drives else (
+            f"needs {LIVE_MIN_POSITIVES} real victims and a holdout AUC of at least {LIVE_MIN_AUC} "
+            f"(has {positives} victims, AUC {auc if auc is not None else 'not yet measurable'})"
+        ),
+    }
+
+
 @app.post("/api/analyze")
 def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
     pool = get_pool(req.pool_id)
@@ -253,6 +308,28 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
         hour_of_day=hour,
         pool_attack_rate_prior=predictor.pool_prior(req.pool_id),
     )
+
+    # --- 1b. real mainnet flow ------------------------------------------
+    # Once the model trained on live Solana data has earned it, it sets the
+    # probability. The simulator's figure is kept alongside for comparison, and
+    # the explanation switches to the live model so it describes the number shown.
+    live_market = _live_market_estimate(pool, req, hour)
+    if live_market and live_market["drives_headline"]:
+        p_real = live_market["p_attack"]
+        ml = {
+            **ml,
+            "simulated_p_attack": ml["p_attack"],
+            "p_attack": p_real,
+            "risk_band": risk_band(p_real),
+            "expected_loss_usd": round(
+                p_real * (ml["expected_loss_bps_if_attacked"] / 10_000.0) * req.notional_usd, 4
+            ),
+            "drivers": live_model.explain(
+                req.notional_usd, pool["tvl_usd"] / 2.0, "buy", hour, _pool_quote(pool)
+            ),
+            "model": "logistic regression on real Solana mainnet swaps",
+            "source": "live-mainnet",
+        }
 
     # --- 2. fuse: hold the model's searcher presence fixed across the sweep
     ctx.bot_activity = calibrate_bot_activity(ctx, req.slippage_bps / 10_000.0, ml["p_attack"])
@@ -298,7 +375,7 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
             ),
             "recommended_chunks": best_split.chunks,
             "model_source": ml["source"],
-            "data_source": "chain" if settings.helius_live else "simulated",
+            "data_source": "chain" if ml.get("source") == "live-mainnet" else "simulated",
         },
     )
 
@@ -315,6 +392,7 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
             **ml,
             "searcher_presence": round(ctx.bot_activity, 4),
             "p_revert": round(revert_probability(ctx, current_s), 4),
+            "live_market": live_market,
         },
         "economics": {
             "attacker_profit_usd": round(current_outcome.attacker_profit_usd, 2),
@@ -581,32 +659,14 @@ def live_solana(
     swaps = fetch_pool_swaps(pool_address, limit=limit)
     events = detect_sandwiches(swaps)
 
-    # Persist, so each pull adds to a corpus rather than being thrown away.
-    # This is the path that eventually replaces the simulated training data.
-    persisted: dict[str, Any] = {"stored": False}
-    if swaps:
-        try:
-            persisted = {
-                "stored": True,
-                "swaps_written": repo.insert_swaps(swaps),
-                "events_written": repo.insert_sandwich_events(events),
-            }
-            repo.update_cursor(
-                "helius:solana",
-                last_block=max(s.block for s in swaps),
-                swaps_ingested=len(swaps),
-                events_detected=len(events),
-            )
-        except DatabaseUnavailable as exc:
-            persisted = {"stored": False, "reason": str(exc)}
-        except Exception as exc:  # ingestion must still return what it found
-            persisted = {"stored": False, "reason": f"{type(exc).__name__}: {exc}"}
-
     return {
         "pool_address": pool_address,
         "swaps_scanned": len(swaps),
         "sandwiches_found": len(events),
         "events": [e.to_dict() for e in events[:50]],
-        "persistence": persisted,
         "source": "helius-live",
+        # Persistence moved to the solana-ingest edge function, which runs every
+        # minute and is the single writer of detections. This endpoint inspects
+        # one pool on demand and stores nothing.
+        "persisted": False,
     }

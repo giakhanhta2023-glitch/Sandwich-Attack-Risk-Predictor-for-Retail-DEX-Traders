@@ -49,6 +49,8 @@ def test_reads_return_empty_without_a_database(no_database):
     assert repo.model_run_history() == []
     assert repo.counts() == {}
     assert repo.get_cursor("helius:solana") is None
+    assert repo.live_summary() == {}
+    assert repo.size_buckets() == []
 
 
 def test_telemetry_is_silent_without_a_database(no_database):
@@ -71,14 +73,11 @@ def test_writes_are_refused_rather_than_silently_dropped(no_database):
     """Ingestion is not telemetry: losing swaps silently would corrupt the corpus."""
     with pytest.raises(DatabaseUnavailable):
         repo.insert_swaps([object()])
-    with pytest.raises(DatabaseUnavailable):
-        repo.insert_sandwich_events([object()])
 
 
 def test_empty_payloads_do_not_touch_the_database(no_database):
     """Nothing to write means no call at all, so an empty pull is not an error."""
     assert repo.insert_swaps([]) == 0
-    assert repo.insert_sandwich_events([]) == 0
 
 
 # ------------------------------------------------------------------ the API

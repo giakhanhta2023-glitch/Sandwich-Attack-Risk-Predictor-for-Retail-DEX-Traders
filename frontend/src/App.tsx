@@ -4,32 +4,27 @@ import type { Methodology, Pool } from '@/api'
 import { Analyzer } from '@/components/Analyzer'
 import { AttackAnatomy } from '@/components/AttackAnatomy'
 import { CorpusDashboard, MethodologySection, ModelCard } from '@/components/Insights'
+import { LiveDashboard } from '@/components/LiveDashboard'
+import { PrivacyPage, TermsPage } from '@/components/Legal'
 import { Badge, Disclosure, LiveDot, Panel } from '@/components/primitives'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { HEALTH_LABEL, ageLabel, healthOf, liveConfigured, useLiveSummary, useNow } from '@/lib/live'
+import type { Health } from '@/lib/live'
+import { Link, usePath } from '@/lib/router'
+import { cn } from '@/lib/utils'
 
 const NAV = [
-  { href: '#analyzer', label: 'Risk engine' },
-  { href: '#research', label: 'Research' },
+  { to: '/#analyzer', label: 'Risk engine', path: '/' },
+  { to: '/live', label: 'Live data', path: '/live' },
+  { to: '/#research', label: 'Research', path: '/' },
 ]
 
 export default function App() {
+  const path = usePath()
   const [pools, setPools] = useState<Pool[]>([])
   const [sources, setSources] = useState<Methodology['sources'] | null>(null)
   const [offline, setOffline] = useState(false)
-  // The research sections are collapsed by default, so a nav link to #research
-  // has to open them as well as scroll -- otherwise the anchor lands on a
-  // closed panel and looks broken.
-  const [researchOpen, setResearchOpen] = useState(false)
-
-  useEffect(() => {
-    const openIfTargeted = () => {
-      if (window.location.hash === '#research') setResearchOpen(true)
-    }
-    openIfTargeted()
-    window.addEventListener('hashchange', openIfTargeted)
-    return () => window.removeEventListener('hashchange', openIfTargeted)
-  }, [])
 
   useEffect(() => {
     api
@@ -44,34 +39,65 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="relative min-h-screen">
-        <Header sources={sources} />
-        <Hero />
-        {offline ? <Offline /> : <Analyzer pools={pools} />}
-
-        {/* Evidence, not decision: measured attack rates, the model card and
-            the ingestion methodology. Kept one click away so the tool above
-            stays the page rather than the preamble to a research report. */}
-        <section id="research" className="relative z-10 mx-auto w-full max-w-[1600px] px-6 pb-6">
-          <Disclosure
-            label="Research &amp; methodology"
-            hint="Measured attack rates, model performance and how the data is collected"
-            open={researchOpen}
-            onOpenChange={setResearchOpen}
-          >
-            <CorpusDashboard />
-            <ModelCard />
-            <MethodologySection />
-          </Disclosure>
-        </section>
-
+      <div className="relative flex min-h-screen flex-col">
+        <Header sources={sources} path={path} />
+        <main className="flex-1">
+          {path === '/live' ? (
+            <LiveDashboard />
+          ) : path === '/terms' ? (
+            <TermsPage />
+          ) : path === '/privacy' ? (
+            <PrivacyPage />
+          ) : (
+            <Home pools={pools} offline={offline} />
+          )}
+        </main>
         <Footer />
       </div>
     </TooltipProvider>
   )
 }
 
-function Header({ sources }: { sources: Methodology['sources'] | null }) {
+function Home({ pools, offline }: { pools: Pool[]; offline: boolean }) {
+  // The research sections are collapsed by default, so a link to #research has
+  // to open them as well as scroll -- otherwise the anchor lands on a closed
+  // panel and looks broken.
+  const [researchOpen, setResearchOpen] = useState(false)
+
+  useEffect(() => {
+    const openIfTargeted = () => {
+      if (window.location.hash === '#research') setResearchOpen(true)
+    }
+    openIfTargeted()
+    window.addEventListener('hashchange', openIfTargeted)
+    return () => window.removeEventListener('hashchange', openIfTargeted)
+  }, [])
+
+  return (
+    <>
+      <Hero />
+      {offline ? <Offline /> : <Analyzer pools={pools} />}
+
+      {/* Evidence, not decision: measured attack rates, the model card and the
+          ingestion methodology. Kept one click away so the tool above stays the
+          page rather than the preamble to a research report. */}
+      <section id="research" className="relative z-10 mx-auto w-full max-w-[1600px] px-6 pb-6">
+        <Disclosure
+          label="Research &amp; methodology"
+          hint="Measured attack rates, model performance and how the data is collected"
+          open={researchOpen}
+          onOpenChange={setResearchOpen}
+        >
+          <CorpusDashboard />
+          <ModelCard />
+          <MethodologySection />
+        </Disclosure>
+      </section>
+    </>
+  )
+}
+
+function Header({ sources, path }: { sources: Methodology['sources'] | null; path: string }) {
   const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
@@ -81,35 +107,35 @@ function Header({ sources }: { sources: Methodology['sources'] | null }) {
   }, [])
 
   return (
-    <header
-      className={`sticky top-0 z-50 border-b bg-void ${
-        scrolled ? 'border-line' : 'border-line/50'
-      }`}
-    >
+    <header className={cn('sticky top-0 z-50 border-b bg-void', scrolled ? 'border-line' : 'border-line/50')}>
       <div className="mx-auto flex max-w-[1600px] items-center gap-5 px-6 py-2">
-        <a href="#top" className="flex items-center gap-2.5">
+        <Link to="/" className="flex items-center gap-2.5">
           <SandwichMark />
           <span className="text-[0.8125rem] font-semibold tracking-[0.04em] uppercase">Sandwich Radar</span>
-        </a>
+        </Link>
 
         <nav className="ml-4 hidden gap-1 md:flex">
           {NAV.map((n) => (
-            <a
-              key={n.href}
-              href={n.href}
-              className="rounded-sm px-2 py-1 text-[0.75rem] text-ink-dim transition-colors hover:bg-raised hover:text-ink"
+            <Link
+              key={n.to}
+              to={n.to}
+              className={cn(
+                'rounded-sm px-2 py-1 text-[0.75rem] transition-colors hover:bg-raised hover:text-ink',
+                n.path === '/live' && path === '/live' ? 'text-ink' : 'text-ink-dim',
+              )}
             >
               {n.label}
-            </a>
+            </Link>
           ))}
         </nav>
 
-        <div className="ml-auto hidden items-center gap-2 sm:flex">
+        <div className="ml-auto flex items-center gap-2">
+          <LiveIndicator />
           {sources &&
             Object.entries(sources).map(([chain, s]) => (
               <span
                 key={chain}
-                className="flex items-center gap-1.5 rounded-sm border border-line px-2 py-0.5 font-mono text-[0.625rem] text-ink-faint"
+                className="hidden items-center gap-1.5 rounded-sm border border-line px-2 py-0.5 font-mono text-[0.625rem] text-ink-faint lg:flex"
                 title={s.detail}
               >
                 <LiveDot live={s.live} />
@@ -119,6 +145,45 @@ function Header({ sources }: { sources: Methodology['sources'] | null }) {
         </div>
       </div>
     </header>
+  )
+}
+
+const INDICATOR_DOT: Record<Health, string> = {
+  live: 'bg-cool pulse-dot',
+  stale: 'bg-warn',
+  down: 'bg-hot',
+  none: 'bg-line-bright',
+}
+
+const INDICATOR_TEXT: Record<Health, string> = {
+  live: 'text-cool',
+  stale: 'text-warn',
+  down: 'text-hot',
+  none: 'text-ink-faint',
+}
+
+/**
+ * The entry point to the live dashboard: a status light that also says how old
+ * the newest chain data is. Clicking it opens the dashboard.
+ */
+function LiveIndicator() {
+  const summary = useLiveSummary(30_000)
+  const now = useNow(1000)
+  if (!liveConfigured) return null
+  const health = healthOf(summary?.last_success_at, now)
+
+  return (
+    <Link
+      to="/live"
+      title="Open the live Solana data dashboard"
+      className="flex items-center gap-1.5 rounded-sm border border-line px-2 py-0.5 font-mono text-[0.625rem] transition-colors hover:border-line-bright hover:bg-raised"
+    >
+      <span className={cn('inline-block size-1.5', INDICATOR_DOT[health])} />
+      <span className={cn('uppercase tracking-[0.12em]', INDICATOR_TEXT[health])}>{HEALTH_LABEL[health]}</span>
+      {summary?.last_success_at && (
+        <span className="text-ink-faint">{ageLabel(summary.last_success_at, now)}</span>
+      )}
+    </Link>
   )
 }
 
@@ -161,7 +226,7 @@ function Hero() {
               variant="outline"
               className="h-8 rounded-sm border-line bg-transparent px-4 text-[0.75rem] font-medium text-ink-dim hover:bg-raised hover:text-ink"
             >
-              <a href="#research">How it works</a>
+              <Link to="/live">See live chain data</Link>
             </Button>
           </div>
 
@@ -169,7 +234,7 @@ function Hero() {
             {[
               ['Closed form', 'front-run capacity'],
               ['Calibrated', 'probability model'],
-              ['Solana first', 'Helius ingestion'],
+              ['Live mainnet', 'scanned every minute'],
             ].map(([a, b]) => (
               <div key={a}>
                 <dt className="text-[0.75rem] font-medium text-ink">{a}</dt>
@@ -193,9 +258,7 @@ function Offline() {
       <Panel className="border-l-2 border-l-hot p-5">
         <div className="eyebrow mb-2 text-hot">Backend unreachable</div>
         <h2 className="mb-3 text-xl font-semibold">The risk API is not running</h2>
-        <p className="mb-4 max-w-2xl text-sm text-ink-dim">
-          Start it from the project root, then reload this page:
-        </p>
+        <p className="mb-4 max-w-2xl text-sm text-ink-dim">Start it from the project root, then reload this page:</p>
         <pre className="num overflow-x-auto rounded-sm border border-line bg-void px-3 py-2 text-[0.6875rem] text-cool">
           uvicorn backend.app.main:app --reload --port 8000
         </pre>
@@ -221,22 +284,37 @@ function Footer() {
           </div>
           <div className="flex gap-10 text-xs">
             <div>
-              <div className="eyebrow mb-2.5">Sources</div>
-              <ul className="space-y-1.5 text-ink-faint">
-                <li>Helius — Solana</li>
-                <li>BigQuery — Ethereum</li>
-              </ul>
-            </div>
-            <div>
               <div className="eyebrow mb-2.5">Sections</div>
               <ul className="space-y-1.5">
                 {NAV.map((n) => (
-                  <li key={n.href}>
-                    <a href={n.href} className="text-ink-faint transition-colors hover:text-ink">
+                  <li key={n.to}>
+                    <Link to={n.to} className="text-ink-faint transition-colors hover:text-ink">
                       {n.label}
-                    </a>
+                    </Link>
                   </li>
                 ))}
+              </ul>
+            </div>
+            <div>
+              <div className="eyebrow mb-2.5">Legal</div>
+              <ul className="space-y-1.5">
+                <li>
+                  <Link to="/terms" className="text-ink-faint transition-colors hover:text-ink">
+                    Terms of use
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/privacy" className="text-ink-faint transition-colors hover:text-ink">
+                    Privacy policy
+                  </Link>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <div className="eyebrow mb-2.5">Sources</div>
+              <ul className="space-y-1.5 text-ink-faint">
+                <li>Solana mainnet — Helius / public RPC</li>
+                <li>Ethereum — Google BigQuery</li>
               </ul>
             </div>
           </div>

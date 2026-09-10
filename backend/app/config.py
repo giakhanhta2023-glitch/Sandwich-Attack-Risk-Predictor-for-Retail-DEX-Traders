@@ -28,7 +28,8 @@ for _directory in (ARTIFACT_DIR, DATA_DIR):
 
 def _load_dotenv() -> None:
     """Minimal .env loader so there is no hard dependency on python-dotenv."""
-    for candidate in (BASE_DIR.parent / ".env", BASE_DIR / ".env"):
+    # public.env comes last and only fills gaps, so real configuration always wins.
+    for candidate in (BASE_DIR.parent / ".env", BASE_DIR / ".env", BASE_DIR / "public.env"):
         if not candidate.exists():
             continue
         for line in candidate.read_text(encoding="utf-8").splitlines():
@@ -36,7 +37,11 @@ def _load_dotenv() -> None:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
-            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+            key = key.strip()
+            # Blank counts as unset: a hosting dashboard entry that was created and
+            # left empty must not block a real value from a file.
+            if not os.environ.get(key, "").strip():
+                os.environ[key] = value.strip().strip('"').strip("'")
 
 
 _load_dotenv()

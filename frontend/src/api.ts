@@ -25,6 +25,20 @@ export interface CurvePoint {
   attacker_profit_usd: number
 }
 
+/** What the model trained on real Solana mainnet swaps says about this trade. */
+export interface LiveMarket {
+  p_attack: number
+  rows: number
+  positives: number
+  weighted_swaps: number
+  trained_at: string
+  window_end: string
+  roc_auc: number | null
+  /** True once it has enough real victims and a good enough holdout score to set the headline. */
+  drives_headline: boolean
+  why_provisional: string | null
+}
+
 export interface Driver {
   feature: string
   label: string
@@ -82,6 +96,9 @@ export interface Analysis {
     source: string
     searcher_presence: number
     p_revert: number
+    /** The simulator's figure, kept when the mainnet model sets the headline. */
+    simulated_p_attack?: number
+    live_market?: LiveMarket | null
   }
   economics: {
     attacker_profit_usd: number

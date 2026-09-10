@@ -19,6 +19,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { Link } from '@/lib/router'
 
 const SLIPPAGE_PRESETS = [10, 30, 50, 100, 300, 500]
 const SIZE_PRESETS = [500, 5_000, 25_000, 100_000]
@@ -124,7 +125,15 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
             <Label htmlFor="size" className="eyebrow">
               Trade size
             </Label>
-            <span className="num text-[0.6875rem] text-ink">{usd(notional, 0)}</span>
+            <NumericEntry
+              ariaLabel="Trade size in US dollars"
+              value={notional}
+              format={(v) => usd(v, 0)}
+              parse={parseUsd}
+              min={100}
+              max={2_000_000}
+              onCommit={setNotional}
+            />
           </div>
           <Slider
             id="size"
@@ -146,7 +155,15 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
             <Label htmlFor="slip" className="eyebrow">
               Your slippage tolerance
             </Label>
-            <span className="num text-[0.6875rem] text-ink">{bps(slippage)}</span>
+            <NumericEntry
+              ariaLabel="Slippage tolerance in basis points"
+              value={slippage}
+              format={bps}
+              parse={parseBps}
+              min={5}
+              max={2000}
+              onCommit={setSlippage}
+            />
           </div>
           <Slider
             id="slip"
@@ -290,6 +307,84 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
   )
 }
 
+/**
+ * Typed entry for an exact figure, sitting where the read-out used to be.
+ *
+ * Sliders are fine for exploring and poor for "I am trading exactly $37,500",
+ * so the value itself is editable. Accepts what people actually type --
+ * "25k", "$1.2m", "0.5%", "50bp" -- and clamps to the slider's range so the
+ * two controls can never disagree.
+ */
+function NumericEntry({
+  value,
+  format,
+  parse,
+  min,
+  max,
+  onCommit,
+  ariaLabel,
+}: {
+  value: number
+  format: (v: number) => string
+  parse: (raw: string) => number
+  min: number
+  max: number
+  onCommit: (v: number) => void
+  ariaLabel: string
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const cancelled = useRef(false)
+
+  const commit = () => {
+    if (!cancelled.current && draft !== null) {
+      const n = parse(draft)
+      if (Number.isFinite(n) && n > 0) onCommit(Math.round(Math.min(max, Math.max(min, n))))
+    }
+    cancelled.current = false
+    setDraft(null)
+  }
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      inputMode="decimal"
+      spellCheck={false}
+      value={draft ?? format(value)}
+      onFocus={(e) => {
+        setDraft(String(value))
+        const el = e.currentTarget
+        requestAnimationFrame(() => el.select())
+      }}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          cancelled.current = true
+          e.currentTarget.blur()
+        }
+      }}
+      className="num w-24 rounded-sm border border-transparent bg-transparent px-1 py-0.5 text-right text-[0.6875rem] text-ink outline-none transition-colors hover:border-line focus:border-line-bright focus:bg-void"
+    />
+  )
+}
+
+/** "$25,000" / "25k" / "1.2m" -> dollars. */
+function parseUsd(raw: string): number {
+  const t = raw.trim().toLowerCase().replace(/[$,\s]/g, '')
+  const m = /^([0-9]*\.?[0-9]+)([km]?)$/.exec(t)
+  if (!m) return NaN
+  return parseFloat(m[1]) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1)
+}
+
+/** "50" / "50bp" / "0.5%" -> basis points. A bare number is read as bp. */
+function parseBps(raw: string): number {
+  const t = raw.trim().toLowerCase().replace(/[,\s]/g, '')
+  const m = /^([0-9]*\.?[0-9]+)(bps?|%)?$/.exec(t)
+  if (!m) return NaN
+  return parseFloat(m[1]) * (m[2] === '%' ? 100 : 1)
+}
+
 function PresetRow<T extends number>({
   options,
   current,
@@ -353,6 +448,7 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
               ? `A searcher nets ${usd(economics.attacker_profit_usd)} from this trade at your current tolerance.`
               : 'A sandwich on this trade loses a searcher money, so the attack is not worth running.'}
           </p>
+          <ModelSource risk={risk} chain={result.input.pool.chain} />
         </div>
 
         <div className="bg-ground p-4">
@@ -390,6 +486,41 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
         </div>
       </div>
     </Panel>
+  )
+}
+
+/** Which model set the probability above, and how much real data stands behind it. */
+function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string }) {
+  const live = risk.live_market
+  const base = risk.source === 'trained' ? 'Simulator-trained model.' : 'Closed-form estimate.'
+
+  return (
+    <p className="mt-2 text-[0.625rem] leading-relaxed text-ink-faint">
+      {risk.source === 'live-mainnet' && live ? (
+        <>
+          <span className="text-cool">Learned from Solana mainnet:</span>{' '}
+          <span className="num">{live.positives.toLocaleString()}</span> real attacks in ~
+          <span className="num">{live.weighted_swaps.toLocaleString()}</span> swaps.
+        </>
+      ) : chain !== 'solana' ? (
+        base
+      ) : live ? (
+        <>
+          {base} The mainnet model reads <span className="num">{(live.p_attack * 100).toFixed(1)}%</span> but
+          is still training (<span className="num">{live.positives}</span> real attacks so far).
+        </>
+      ) : (
+        `${base} A model trained on live mainnet data takes over once it has seen enough real attacks.`
+      )}
+      {chain === 'solana' && (
+        <>
+          {' '}
+          <Link to="/live" className="text-ink-dim underline decoration-line-bright underline-offset-2 hover:text-ink">
+            Live data
+          </Link>
+        </>
+      )}
+    </p>
   )
 }
 
@@ -501,7 +632,9 @@ function Drivers({ result }: { result: Analysis }) {
       <div className="eyebrow mb-1">Model attribution</div>
       <h3 className="mb-1 text-base font-semibold">Why this score</h3>
       <p className="mb-4 text-xs text-ink-faint">
-        Each bar is the change in predicted probability when that input is reset to its corpus median.
+        {result.risk.source === 'live-mainnet'
+          ? 'Each bar is the change in probability when that input is reset to the average of real mainnet swaps.'
+          : 'Each bar is the change in predicted probability when that input is reset to its corpus median.'}
       </p>
 
       {drivers.length === 0 ? (

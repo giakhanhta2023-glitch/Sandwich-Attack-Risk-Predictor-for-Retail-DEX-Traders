@@ -130,44 +130,6 @@ def insert_swaps(swaps: Sequence[Any]) -> int:
     return written
 
 
-def insert_sandwich_events(events: Sequence[Any]) -> int:
-    """Persist detected sandwiches. Idempotent on the (front, victim, back) triple."""
-    if not events:
-        return 0
-    client = require_write_client()
-    rows = [
-        {
-            "chain": e.chain,
-            "block": int(e.block),
-            "pool_id": e.pool_id,
-            "attacker": e.attacker,
-            "victim": e.victim,
-            "frontrun_tx": e.frontrun_tx,
-            "victim_tx": e.victim_tx,
-            "backrun_tx": e.backrun_tx,
-            "victim_amount_in": float(e.victim_amount_in),
-            "victim_amount_in_usd": float(e.victim_amount_in_usd) or None,
-            "victim_out_actual": float(e.victim_out_actual),
-            "victim_out_counterfactual": float(e.victim_out_counterfactual),
-            "victim_loss_bps": float(e.victim_loss_bps),
-            "victim_loss_usd": float(e.victim_loss_usd) or None,
-            "attacker_profit_native": float(e.attacker_profit_native),
-            "attacker_profit_usd": float(e.attacker_profit_usd) or None,
-            "frontrun_amount_in": float(e.frontrun_amount_in),
-            "confidence": float(e.confidence),
-            "block_time": _iso(e.timestamp),
-        }
-        for e in events
-    ]
-    written = 0
-    for batch in _chunks(rows):
-        client.table("sandwich_events").upsert(
-            batch, on_conflict="frontrun_tx,victim_tx,backrun_tx", ignore_duplicates=True
-        ).execute()
-        written += len(batch)
-    return written
-
-
 def recent_sandwiches(limit: int = 50) -> list[dict[str, Any]]:
     client = read_client()
     if client is None:
@@ -295,15 +257,15 @@ def model_run_history(limit: int = 20) -> list[dict[str, Any]]:
 # ------------------------------------------------------------------- views
 
 def pool_risk_stats() -> list[dict[str, Any]]:
-    """Per-pool attack rates measured from stored chain data."""
+    """Per-pool attack rates over the last 7 days, measured by the live ingester."""
     client = read_client()
     if client is None:
         return []
     try:
-        res = client.table("pool_risk_stats").select("*").execute()
+        res = client.table("live_pool_risk").select("*").order("swaps", desc=True).limit(300).execute()
         return res.data or []
     except Exception as exc:
-        logger.warning("pool_risk_stats unavailable: %s", exc)
+        logger.warning("live_pool_risk unavailable: %s", exc)
         return []
 
 
@@ -313,6 +275,29 @@ def severity_buckets() -> list[dict[str, Any]]:
         return []
     try:
         return client.table("sandwich_severity_buckets").select("*").execute().data or []
+    except Exception:
+        return []
+
+
+def live_summary() -> dict[str, Any]:
+    """Freshness and 24h totals for the live pipeline. Empty when unreachable."""
+    client = read_client()
+    if client is None:
+        return {}
+    try:
+        rows = client.table("live_summary").select("*").execute().data or []
+        return rows[0] if rows else {}
+    except Exception:
+        return {}
+
+
+def size_buckets() -> list[dict[str, Any]]:
+    """Attack rate by trade size, from the weighted swap sample."""
+    client = read_client()
+    if client is None:
+        return []
+    try:
+        return client.table("live_size_buckets").select("*").order("lower_usd").execute().data or []
     except Exception:
         return []
 
@@ -333,7 +318,7 @@ def counts() -> dict[str, int]:
     if client is None:
         return {}
     out: dict[str, int] = {}
-    for table in ("pools", "swaps", "sandwich_events", "model_runs"):
+    for table in ("pools", "sandwich_events", "ingest_runs", "swap_samples", "model_runs"):
         try:
             res = client.table(table).select("*", count="exact", head=True).execute()
             out[table] = res.count or 0

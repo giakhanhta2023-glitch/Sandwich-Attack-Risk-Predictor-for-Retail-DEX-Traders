@@ -1,0 +1,52 @@
+# Retrain the sandwich-risk model on real Solana mainnet flow.
+#
+# The solana-ingest edge function samples mainnet every minute into Supabase.
+# Every six hours this job reads that sample (public data, read with the
+# publishable key -- no secrets needed), refits the model, and commits the new
+# backend/artifacts/live_model.json. The commit triggers a Vercel redeploy, so
+# production serves the refreshed model without anyone touching it.
+#
+# Until enough real victims have accumulated, the trainer declines to write a
+# model and this job ends without committing.
+name: Retrain live model
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: retrain-live-model
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install training dependencies
+        run: pip install "numpy>=1.26" "scikit-learn>=1.5" "supabase>=2.20" "httpx>=0.27"
+
+      - name: Train on real Solana flow
+        run: python -m backend.ml.train_live
+
+      - name: Commit the model if it changed
+        run: |
+          if [ -z "$(git status --porcelain -- backend/artifacts/live_model.json)" ]; then
+            echo "No new model to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/artifacts/live_model.json
+          git commit -m "Retrain live model on real Solana mainnet flow"
+          git push
