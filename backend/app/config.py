@@ -14,8 +14,16 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 ARTIFACT_DIR = BASE_DIR / "artifacts"
 DATA_DIR = BASE_DIR / "data"
-ARTIFACT_DIR.mkdir(exist_ok=True)
-DATA_DIR.mkdir(exist_ok=True)
+# Creating these at import is a convenience for local development. A serverless
+# filesystem is read-only outside /tmp, and `backend/data` is not shipped, so the
+# attempt raises there -- which would crash the function before it serves a
+# single request. Nothing on the serving path writes to either directory, so
+# failing to create them is not an error worth propagating.
+for _directory in (ARTIFACT_DIR, DATA_DIR):
+    try:
+        _directory.mkdir(exist_ok=True)
+    except OSError:
+        pass
 
 
 def _load_dotenv() -> None:
