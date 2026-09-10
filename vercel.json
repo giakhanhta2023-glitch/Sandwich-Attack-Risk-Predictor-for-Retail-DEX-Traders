@@ -5,11 +5,13 @@
   "installCommand": "echo skip-root-install",
   "functions": {
     "api/index.py": {
-      "runtime": "@vercel/python@4.3.0",
       "maxDuration": 30
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index"
+    }
   ]
 }
