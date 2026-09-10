@@ -84,6 +84,7 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
               domain={[minBps, maxBps]}
               ticks={ticks}
               tickFormatter={(v: number) => (v < 100 ? `${v}` : `${v / 100}%`)}
+              tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-faint)' }}
               tickLine={false}
               axisLine={{ stroke: 'var(--line-bright)' }}
               label={{
@@ -95,6 +96,7 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
             />
             <YAxis
               tickFormatter={(v: number) => usd(v, v >= 100 ? 0 : v >= 1 ? 1 : 2)}
+              tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-faint)' }}
               tickLine={false}
               axisLine={false}
               width={62}

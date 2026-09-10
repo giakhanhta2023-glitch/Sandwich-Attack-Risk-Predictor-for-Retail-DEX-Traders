@@ -211,7 +211,13 @@
 
 .recharts-surface { overflow: visible; }
 
-.recharts-cartesian-axis-tick text {
+/* Recharts puts the class on the <text> itself and renders the label inside a
+   <tspan>, so target both -- a descendant selector on the wrapping <g> does not
+   reach them. Every tick is a figure, so every tick is monospaced. */
+.recharts-text,
+.recharts-text tspan,
+.recharts-cartesian-axis-tick text,
+.recharts-cartesian-axis-tick tspan {
   font-family: var(--font-mono);
   font-size: 10px;
   fill: var(--ink-faint);

@@ -178,6 +178,7 @@ function RateChart({ data }: { data: RateRow[] }) {
             type="number"
             domain={[0, max * 1.12]}
             tickFormatter={(v: number) => pct(v, 0)}
+            tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-faint)' }}
             tickLine={false}
             axisLine={false}
           />
@@ -356,6 +357,7 @@ function ReliabilityPlot({ bins }: { bins: ModelReport['metrics']['reliability']
             dataKey="predicted"
             domain={[0, max]}
             tickFormatter={(v: number) => pct(v, 0)}
+            tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-faint)' }}
             tickLine={false}
             axisLine={false}
             label={{
@@ -370,6 +372,7 @@ function ReliabilityPlot({ bins }: { bins: ModelReport['metrics']['reliability']
             dataKey="observed"
             domain={[0, max]}
             tickFormatter={(v: number) => pct(v, 0)}
+            tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-faint)' }}
             tickLine={false}
             axisLine={false}
             width={40}
@@ -413,7 +416,13 @@ function ImportanceChart({ items }: { items: ModelReport['feature_importance'] }
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={items} layout="vertical" margin={{ top: 0, right: 12, bottom: 0, left: 0 }}>
           <CartesianGrid stroke="var(--line)" horizontal={false} />
-          <XAxis type="number" tickLine={false} axisLine={false} tickFormatter={(v: number) => v.toFixed(3)} />
+          <XAxis
+            type="number"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(v: number) => v.toFixed(3)}
+            tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-faint)' }}
+          />
           <YAxis
             type="category"
             dataKey="feature"
