@@ -42,20 +42,47 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 
+def _env_str(name: str, default: str = "") -> str:
+    """Environment string, treating a blank value as unset.
+
+    Hosting dashboards routinely hold a variable that has been created but left
+    empty. `os.getenv(name, default)` only falls back when the name is *absent*,
+    so an empty value silently wins over the default.
+    """
+    value = os.getenv(name)
+    return value.strip() if value and value.strip() else default
+
+
+def _env_int(name: str, default: int) -> int:
+    """Environment integer that tolerates blank and malformed values.
+
+    An empty variable previously reached `int("")` and raised at import time,
+    which on a serverless host kills the function before it serves anything.
+    A bad value is not worth crashing over when a sane default exists.
+    """
+    raw = _env_str(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
 @dataclass(frozen=True)
 class Settings:
-    helius_api_key: str = os.getenv("HELIUS_API_KEY", "")
+    helius_api_key: str = _env_str("HELIUS_API_KEY")
     # Supabase. The publishable key is safe to ship: RLS constrains it to the
     # public research tables. The service key bypasses RLS and must never be
     # committed or sent anywhere but the database.
-    supabase_url: str = os.getenv("SUPABASE_URL", "")
-    supabase_publishable_key: str = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
-    supabase_service_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
-    helius_rpc_url: str = os.getenv("HELIUS_RPC_URL", "")
-    bigquery_project: str = os.getenv("BIGQUERY_PROJECT", "")
-    google_credentials: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
-    max_blocks_per_pull: int = int(os.getenv("MAX_BLOCKS_PER_PULL", "200"))
-    bigquery_max_bytes: int = int(os.getenv("BIGQUERY_MAX_BYTES", str(20 * 1024**3)))
+    supabase_url: str = _env_str("SUPABASE_URL")
+    supabase_publishable_key: str = _env_str("SUPABASE_PUBLISHABLE_KEY")
+    supabase_service_key: str = _env_str("SUPABASE_SERVICE_KEY")
+    helius_rpc_url: str = _env_str("HELIUS_RPC_URL")
+    bigquery_project: str = _env_str("BIGQUERY_PROJECT")
+    google_credentials: str = _env_str("GOOGLE_APPLICATION_CREDENTIALS")
+    max_blocks_per_pull: int = _env_int("MAX_BLOCKS_PER_PULL", 200)
+    bigquery_max_bytes: int = _env_int("BIGQUERY_MAX_BYTES", 20 * 1024**3)
 
     @property
     def db_configured(self) -> bool:
