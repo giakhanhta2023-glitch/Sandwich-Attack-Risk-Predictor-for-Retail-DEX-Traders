@@ -1,6 +1,8 @@
-import type { ComponentProps, ReactNode } from 'react'
+import { useState, type ComponentProps, type ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Badge as ShadBadge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
@@ -129,4 +131,65 @@ export function Bar({
 }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
   return <Progress value={pct} className={cn('h-1.5 bg-line', BAR_TONES[tone])} />
+}
+
+
+/**
+ * Progressive disclosure for supporting detail.
+ *
+ * Most of what this app can show is evidence rather than decision: the
+ * searcher's ledger, the model's attribution, the corpus, the calibration plot.
+ * Useful for anyone asking "why should I believe this", noise for someone who
+ * just wants to know what slippage to set. Collapsed by default keeps the
+ * decision unobstructed; the summary line says what is inside, so hidden is
+ * not the same as buried.
+ */
+export function Disclosure({
+  label,
+  hint,
+  children,
+  open,
+  onOpenChange,
+  defaultOpen = false,
+  className,
+}: {
+  label: string
+  hint?: string
+  children: ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  defaultOpen?: boolean
+  className?: string
+}) {
+  const [uncontrolled, setUncontrolled] = useState(defaultOpen)
+  const isOpen = open ?? uncontrolled
+  const setOpen = onOpenChange ?? setUncontrolled
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setOpen} className={className}>
+      <CollapsibleTrigger
+        className={cn(
+          'group flex w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left',
+          'transition-colors hover:border-line-bright hover:bg-raised/40',
+        )}
+      >
+        <ChevronDown
+          className={cn(
+            'size-4 shrink-0 text-ink-faint transition-transform duration-200',
+            isOpen && 'rotate-180',
+          )}
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-ink">{label}</span>
+          {hint && <span className="block text-xs text-ink-faint">{hint}</span>}
+        </span>
+        <span className="num ml-auto shrink-0 text-[0.6875rem] text-ink-faint">
+          {isOpen ? 'hide' : 'show'}
+        </span>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+        <div className="pt-5">{children}</div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
 }

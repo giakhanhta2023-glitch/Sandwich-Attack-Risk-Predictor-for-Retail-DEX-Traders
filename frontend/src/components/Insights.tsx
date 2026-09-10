@@ -47,6 +47,7 @@ export function CorpusDashboard() {
   return (
     <Section
       id="corpus"
+      className="!py-8"
       eyebrow="Corpus"
       title="Risk is not spread evenly"
       lede="Attack rates across the labelled corpus. The pattern is consistent: sandwiches concentrate where a wide tolerance meets a thin pool, and almost vanish where the pool's own fee tier costs the searcher more than the trade is worth."
@@ -111,10 +112,10 @@ export function CorpusDashboard() {
         <div className="eyebrow mb-1">By pool</div>
         <h3 className="mb-4 text-base font-semibold">Where the extraction happens</h3>
         <div className="-mx-5 overflow-x-auto px-5">
-          <Table className="min-w-[700px]">
+          <Table className="min-w-[540px]">
             <TableHeader>
               <TableRow className="border-line hover:bg-transparent">
-                {['Pool', 'Chain', 'Depth', 'Swaps', 'Hit', 'Median loss', 'Attack rate'].map((h, i, a) => (
+                {['Pool', 'Chain', 'Depth', 'Median loss', 'Attack rate'].map((h, i, a) => (
                   <TableHead
                     key={h}
                     className={cn('eyebrow h-auto pb-2 font-normal', i === a.length - 1 && 'text-right')}
@@ -135,8 +136,6 @@ export function CorpusDashboard() {
                     <Badge tone={p.chain === 'solana' ? 'info' : 'neutral'}>{p.chain}</Badge>
                   </TableCell>
                   <TableCell className="num text-ink-dim">{compactUsd(p.tvl_usd)}</TableCell>
-                  <TableCell className="num text-ink-faint">{p.swaps.toLocaleString()}</TableCell>
-                  <TableCell className="num text-ink-faint">{p.sandwiched.toLocaleString()}</TableCell>
                   <TableCell className="num text-warn">
                     {p.median_loss_bps ? bps(p.median_loss_bps) : '—'}
                   </TableCell>
@@ -254,6 +253,7 @@ export function ModelCard() {
   return (
     <Section
       id="model"
+      className="!py-8"
       eyebrow="Model card"
       title="What the model is, and where it is weak"
       lede="Gradient-boosted trees with isotonic calibration, split chronologically by block so no future regime leaks backwards. Calibration matters more than ranking here: the recommendation multiplies this probability by a dollar loss, so a confidently wrong score produces a confidently wrong slippage."
@@ -463,6 +463,7 @@ export function MethodologySection() {
   return (
     <Section
       id="methodology"
+      className="!py-8"
       eyebrow="Methodology"
       title="Where the numbers come from"
       lede="Two ingestion paths, one detector, one optimiser. Every figure on this page is either measured from a swap stream or derived in closed form from the constant-product curve — nothing is a fudge factor except the two calibration constants named below."

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, usd, compactUsd, pct, bps } from '@/api'
 import type { Analysis, Pool } from '@/api'
-import { Badge, Bar, Panel, Section, Skeleton, Stat } from './primitives'
+import { Badge, Bar, Disclosure, Panel, Section, Skeleton, Stat } from './primitives'
 import { CostCurve } from './CostCurve'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -191,15 +191,17 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
           {result && (
             <>
               <Separator className="my-4 bg-line" />
-              <div className="space-y-2 text-[0.6875rem] text-ink-faint">
-                <Row label={result.market.cost_label} value={usd(result.market.attack_cost_usd)} />
-                <Row label="Your gas per attempt" value={usd(result.market.user_gas_usd)} />
-                <Row
-                  label="Exposure window"
-                  value={`${(result.market.block_time_s * result.market.inclusion_blocks).toFixed(1)}s`}
-                />
-                {result.market.gas_gwei && <Row label="Base fee" value={`${result.market.gas_gwei} gwei`} />}
-              </div>
+              <Disclosure label="Execution conditions" hint="Gas, tips and how long you are exposed">
+                <div className="space-y-2 text-[0.6875rem] text-ink-faint">
+                  <Row label={result.market.cost_label} value={usd(result.market.attack_cost_usd)} />
+                  <Row label="Your gas per attempt" value={usd(result.market.user_gas_usd)} />
+                  <Row
+                    label="Exposure window"
+                    value={`${(result.market.block_time_s * result.market.inclusion_blocks).toFixed(1)}s`}
+                  />
+                  {result.market.gas_gwei && <Row label="Base fee" value={`${result.market.gas_gwei} gwei`} />}
+                </div>
+              </Disclosure>
             </>
           )}
         </Panel>
@@ -257,13 +259,19 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                 />
               </Panel>
 
-              <div className="mt-5 grid gap-5 md:grid-cols-2">
-                <AttackerLedger result={result} />
-                <Drivers result={result} />
-              </div>
-
-              <SplitLadder result={result} />
               <Recommendations result={result} />
+
+              <Disclosure
+                className="mt-5"
+                label="Show the working"
+                hint="What the bot earns, why the model scored it this way, and the full split ladder"
+              >
+                <div className="grid gap-5 md:grid-cols-2">
+                  <AttackerLedger result={result} />
+                  <Drivers result={result} />
+                </div>
+                <SplitLadder result={result} />
+              </Disclosure>
             </div>
           )}
         </div>
@@ -527,8 +535,8 @@ function Drivers({ result }: { result: Analysis }) {
 
       <Separator className="my-4 bg-line" />
       <div className="space-y-1.5 text-[0.6875rem] text-ink-faint">
-        <Row label="Searcher presence (latent)" value={pct(result.risk.searcher_presence)} />
-        <Row label="Revert probability at your tolerance" value={pct(result.risk.p_revert)} />
+        <Row label="How closely bots watch this pool" value={pct(result.risk.searcher_presence)} />
+        <Row label="Chance your trade fails and retries" value={pct(result.risk.p_revert)} />
         <Row label="Loss if attacked" value={bps(result.risk.expected_loss_bps_if_attacked)} />
       </div>
     </Panel>
@@ -556,10 +564,10 @@ function SplitLadder({ result }: { result: Analysis }) {
       </div>
 
       <div className="-mx-5 overflow-x-auto px-5">
-        <Table className="min-w-[620px]">
+        <Table className="min-w-[480px]">
           <TableHeader>
             <TableRow className="border-line hover:bg-transparent">
-              {['Chunks', 'Each', 'Slippage', 'Attacker profit', 'Extra gas', 'Timing risk', 'Expected cost'].map(
+              {['Chunks', 'Each', 'Slippage', 'Attacker profit', 'Expected cost'].map(
                 (h, i, arr) => (
                   <TableHead
                     key={h}
@@ -590,8 +598,6 @@ function SplitLadder({ result }: { result: Analysis }) {
                   >
                     {usd(p.attacker_profit_per_chunk_usd)}
                   </TableCell>
-                  <TableCell className="num text-ink-faint">{usd(p.gas_overhead_usd)}</TableCell>
-                  <TableCell className="num text-ink-faint">{usd(p.timing_risk_usd)}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2.5">
                       <div className="hidden w-20 sm:block">

@@ -4,21 +4,32 @@ import type { Methodology, Pool } from '@/api'
 import { Analyzer } from '@/components/Analyzer'
 import { AttackAnatomy } from '@/components/AttackAnatomy'
 import { CorpusDashboard, MethodologySection, ModelCard } from '@/components/Insights'
-import { Badge, LiveDot, Panel } from '@/components/primitives'
+import { Badge, Disclosure, LiveDot, Panel } from '@/components/primitives'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
 const NAV = [
   { href: '#analyzer', label: 'Risk engine' },
-  { href: '#corpus', label: 'Corpus' },
-  { href: '#model', label: 'Model' },
-  { href: '#methodology', label: 'Method' },
+  { href: '#research', label: 'Research' },
 ]
 
 export default function App() {
   const [pools, setPools] = useState<Pool[]>([])
   const [sources, setSources] = useState<Methodology['sources'] | null>(null)
   const [offline, setOffline] = useState(false)
+  // The research sections are collapsed by default, so a nav link to #research
+  // has to open them as well as scroll -- otherwise the anchor lands on a
+  // closed panel and looks broken.
+  const [researchOpen, setResearchOpen] = useState(false)
+
+  useEffect(() => {
+    const openIfTargeted = () => {
+      if (window.location.hash === '#research') setResearchOpen(true)
+    }
+    openIfTargeted()
+    window.addEventListener('hashchange', openIfTargeted)
+    return () => window.removeEventListener('hashchange', openIfTargeted)
+  }, [])
 
   useEffect(() => {
     api
@@ -37,9 +48,23 @@ export default function App() {
         <Header sources={sources} />
         <Hero />
         {offline ? <Offline /> : <Analyzer pools={pools} />}
-        <CorpusDashboard />
-        <ModelCard />
-        <MethodologySection />
+
+        {/* Evidence, not decision: measured attack rates, the model card and
+            the ingestion methodology. Kept one click away so the tool above
+            stays the page rather than the preamble to a research report. */}
+        <section id="research" className="relative z-10 mx-auto w-full max-w-[1400px] px-6 pb-8">
+          <Disclosure
+            label="Research &amp; methodology"
+            hint="Measured attack rates, model performance and how the data is collected"
+            open={researchOpen}
+            onOpenChange={setResearchOpen}
+          >
+            <CorpusDashboard />
+            <ModelCard />
+            <MethodologySection />
+          </Disclosure>
+        </section>
+
         <Footer />
       </div>
     </TooltipProvider>
