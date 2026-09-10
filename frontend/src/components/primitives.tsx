@@ -187,8 +187,16 @@ export function Disclosure({
           {isOpen ? 'hide' : 'show'}
         </span>
       </CollapsibleTrigger>
-      <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-        <div className="pt-5">{children}</div>
+      {/* Height is deliberately not animated. Hand-rolled collapsible-down/up
+          keyframes collided with the identically named ones tw-animate-css
+          ships, and the open panel stayed pinned at height:0 -- expanded, in
+          the DOM, and invisible. Radix hides the closed state on its own, so
+          the content keeps its natural height and only opacity is animated,
+          which cannot collapse layout if it goes wrong. */}
+      <CollapsibleContent>
+        <div className="pt-5 duration-200 data-[state=open]:animate-in data-[state=open]:fade-in">
+          {children}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   )
