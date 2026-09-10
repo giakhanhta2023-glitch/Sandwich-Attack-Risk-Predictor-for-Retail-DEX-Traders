@@ -76,19 +76,19 @@ export function AttackAnatomy() {
 
   return (
     <div className="panel overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-3 py-2">
         <div className="eyebrow">Anatomy of a sandwich</div>
         <Button
           variant="outline"
           size="sm"
           onClick={() => setPlaying((p) => !p)}
-          className="num h-7 rounded-full border-line-bright bg-transparent px-3 text-[0.6875rem] text-ink-dim hover:border-ink-faint hover:text-ink"
+          className="num h-6 rounded-sm border-line bg-transparent px-2 text-[0.625rem] text-ink-dim hover:bg-raised hover:text-ink"
         >
-          {playing ? '❙❙ pause' : '▶ play'}
+          {playing ? 'PAUSE' : 'PLAY'}
         </Button>
       </div>
 
-      <div className="h-[190px] px-2 pt-4">
+      <div className="h-[150px] px-1 pt-3">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 14, right: 16, bottom: 6, left: 30 }}>
             <XAxis
@@ -119,7 +119,7 @@ export function AttackAnatomy() {
                 y1={1.0}
                 y2={1.048}
                 fill="var(--hot)"
-                fillOpacity={0.12}
+                fillOpacity={0.16}
                 label={{
                   value: 'your loss',
                   style: { fill: 'var(--hot)', fontSize: 10, fontFamily: 'var(--font-mono)' },
@@ -141,7 +141,7 @@ export function AttackAnatomy() {
         </ResponsiveContainer>
       </div>
 
-      <div className="border-t border-line px-5 py-4">
+      <div className="border-t border-line px-3 py-3">
         <div className="flex items-baseline gap-2.5">
           <span
             className={`num text-[0.6875rem] uppercase tracking-widest ${
@@ -154,9 +154,9 @@ export function AttackAnatomy() {
           >
             {active.actor}
           </span>
-          <h3 className="text-[0.975rem] font-semibold text-ink">{active.title}</h3>
+          <h3 className="text-[0.8125rem] font-semibold text-ink">{active.title}</h3>
         </div>
-        <p className="mt-1.5 min-h-[2.75rem] text-sm leading-relaxed text-ink-dim">{active.body}</p>
+        <p className="mt-1.5 min-h-[2.5rem] text-[0.75rem] leading-relaxed text-ink-dim">{active.body}</p>
 
         <div className="mt-3 flex gap-1.5">
           {STEPS.map((s, i) => (
@@ -167,7 +167,7 @@ export function AttackAnatomy() {
                 setStep(i)
               }}
               aria-label={`Step ${i + 1}: ${s.title}`}
-              className={`h-1 flex-1 rounded-full transition-colors ${i <= step ? 'bg-hot' : 'bg-line'}`}
+              className={`h-0.5 flex-1 transition-colors ${i <= step ? 'bg-hot' : 'bg-line'}`}
             />
           ))}
         </div>
@@ -182,13 +182,14 @@ function StepDot({ cx, cy, payload, activeIndex }: DotProps & { payload?: { idx:
   const isVictim = payload.actor === 'victim'
   const isCurrent = payload.idx === activeIndex
   return (
-    <circle
-      cx={cx}
-      cy={cy}
-      r={isCurrent ? 6 : 4}
+    <rect
+      x={cx - (isCurrent ? 4 : 3)}
+      y={cy - (isCurrent ? 4 : 3)}
+      width={isCurrent ? 8 : 6}
+      height={isCurrent ? 8 : 6}
       fill={isVictim ? 'var(--ink)' : 'var(--hot)'}
       stroke="var(--void)"
-      strokeWidth={2}
+      strokeWidth={1.5}
     />
   )
 }

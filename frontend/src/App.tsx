@@ -52,7 +52,7 @@ export default function App() {
         {/* Evidence, not decision: measured attack rates, the model card and
             the ingestion methodology. Kept one click away so the tool above
             stays the page rather than the preamble to a research report. */}
-        <section id="research" className="relative z-10 mx-auto w-full max-w-[1400px] px-6 pb-8">
+        <section id="research" className="relative z-10 mx-auto w-full max-w-[1600px] px-6 pb-6">
           <Disclosure
             label="Research &amp; methodology"
             hint="Measured attack rates, model performance and how the data is collected"
@@ -82,14 +82,14 @@ function Header({ sources }: { sources: Methodology['sources'] | null }) {
 
   return (
     <header
-      className={`sticky top-0 z-50 border-b transition-colors ${
-        scrolled ? 'border-line bg-void/85 backdrop-blur-md' : 'border-transparent'
+      className={`sticky top-0 z-50 border-b bg-void ${
+        scrolled ? 'border-line' : 'border-line/50'
       }`}
     >
-      <div className="mx-auto flex max-w-[1400px] items-center gap-6 px-6 py-3.5">
+      <div className="mx-auto flex max-w-[1600px] items-center gap-5 px-6 py-2">
         <a href="#top" className="flex items-center gap-2.5">
           <SandwichMark />
-          <span className="text-[0.9375rem] font-semibold tracking-[-0.02em]">Sandwich Radar</span>
+          <span className="text-[0.8125rem] font-semibold tracking-[0.04em] uppercase">Sandwich Radar</span>
         </a>
 
         <nav className="ml-4 hidden gap-1 md:flex">
@@ -97,7 +97,7 @@ function Header({ sources }: { sources: Methodology['sources'] | null }) {
             <a
               key={n.href}
               href={n.href}
-              className="rounded-md px-2.5 py-1.5 text-[0.8125rem] text-ink-dim transition-colors hover:bg-raised hover:text-ink"
+              className="rounded-sm px-2 py-1 text-[0.75rem] text-ink-dim transition-colors hover:bg-raised hover:text-ink"
             >
               {n.label}
             </a>
@@ -109,7 +109,7 @@ function Header({ sources }: { sources: Methodology['sources'] | null }) {
             Object.entries(sources).map(([chain, s]) => (
               <span
                 key={chain}
-                className="flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 font-mono text-[0.625rem] text-ink-faint"
+                className="flex items-center gap-1.5 rounded-sm border border-line px-2 py-0.5 font-mono text-[0.625rem] text-ink-faint"
                 title={s.detail}
               >
                 <LiveDot live={s.live} />
@@ -125,61 +125,61 @@ function Header({ sources }: { sources: Methodology['sources'] | null }) {
 function SandwichMark() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
-      <rect x="2" y="4" width="18" height="3.4" rx="1.2" fill="var(--color-hot)" />
-      <rect x="2" y="9.3" width="18" height="3.4" rx="1.2" fill="var(--color-ink-faint)" />
-      <rect x="2" y="14.6" width="18" height="3.4" rx="1.2" fill="var(--color-hot)" />
+      <rect x="2" y="4" width="18" height="3.4" fill="var(--color-hot)" />
+      <rect x="2" y="9.3" width="18" height="3.4" fill="var(--color-ink-faint)" />
+      <rect x="2" y="14.6" width="18" height="3.4" fill="var(--color-hot)" />
     </svg>
   )
 }
 
 function Hero() {
   return (
-    <section id="top" className="relative z-10 mx-auto w-full max-w-[1400px] px-6 pt-16 pb-8 md:pt-24">
-      <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
-        <div className="rise">
+    <section id="top" className="relative z-10 mx-auto w-full max-w-[1600px] px-6 pt-8 pb-6">
+      <div className="grid items-center gap-8 lg:grid-cols-[1fr_1fr]">
+        <div>
           <Badge tone="hot">MEV · Solana &amp; Ethereum</Badge>
 
-          <h1 className="mt-5 text-[2.75rem] leading-[0.98] font-semibold tracking-[-0.04em] md:text-[4rem]">
+          <h1 className="mt-3 text-[1.75rem] leading-[1.08] font-semibold tracking-[-0.025em] md:text-[2.25rem]">
             Your slippage setting
             <br />
             <span className="text-hot">is a bot's budget.</span>
           </h1>
 
-          <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-dim">
+          <p className="mt-3 max-w-xl text-[0.8125rem] leading-relaxed text-ink-dim">
             When you set a slippage tolerance, you publish the exact amount a searcher is allowed to take from
             you — and they will take almost all of it. This tool scores that risk from chain data, then solves for
             the tolerance that costs you the least.
           </p>
 
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild size="lg" className="h-11 rounded-lg text-sm font-medium">
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button asChild size="sm" className="h-8 rounded-sm px-4 text-[0.75rem] font-medium">
               <a href="#analyzer">Analyse a trade</a>
             </Button>
             <Button
               asChild
-              size="lg"
+              size="sm"
               variant="outline"
-              className="h-11 rounded-lg border-line-bright bg-transparent text-sm font-medium text-ink-dim hover:border-ink-faint hover:bg-raised hover:text-ink"
+              className="h-8 rounded-sm border-line bg-transparent px-4 text-[0.75rem] font-medium text-ink-dim hover:bg-raised hover:text-ink"
             >
-              <a href="#methodology">How it works</a>
+              <a href="#research">How it works</a>
             </Button>
           </div>
 
-          <dl className="mt-10 grid max-w-lg grid-cols-3 gap-6 border-t border-line pt-6">
+          <dl className="mt-6 grid max-w-lg grid-cols-3 gap-4 border-t border-line pt-4">
             {[
               ['Closed form', 'front-run capacity'],
               ['Calibrated', 'probability model'],
               ['Solana first', 'Helius ingestion'],
             ].map(([a, b]) => (
               <div key={a}>
-                <dt className="text-sm font-medium text-ink">{a}</dt>
-                <dd className="mt-0.5 text-xs text-ink-faint">{b}</dd>
+                <dt className="text-[0.75rem] font-medium text-ink">{a}</dt>
+                <dd className="mt-0.5 text-[0.6875rem] text-ink-faint">{b}</dd>
               </div>
             ))}
           </dl>
         </div>
 
-        <div className="rise" style={{ animationDelay: '120ms' }}>
+        <div>
           <AttackAnatomy />
         </div>
       </div>
@@ -189,14 +189,14 @@ function Hero() {
 
 function Offline() {
   return (
-    <div className="relative z-10 mx-auto max-w-[1400px] px-6 py-20">
-      <Panel className="border-hot/40 p-8">
+    <div className="relative z-10 mx-auto max-w-[1600px] px-6 py-10">
+      <Panel className="border-l-2 border-l-hot p-5">
         <div className="eyebrow mb-2 text-hot">Backend unreachable</div>
         <h2 className="mb-3 text-xl font-semibold">The risk API is not running</h2>
         <p className="mb-4 max-w-2xl text-sm text-ink-dim">
           Start it from the project root, then reload this page:
         </p>
-        <pre className="num overflow-x-auto rounded-lg border border-line bg-void px-4 py-3 text-xs text-cool">
+        <pre className="num overflow-x-auto rounded-sm border border-line bg-void px-3 py-2 text-[0.6875rem] text-cool">
           uvicorn backend.app.main:app --reload --port 8000
         </pre>
       </Panel>
@@ -207,12 +207,12 @@ function Offline() {
 function Footer() {
   return (
     <footer className="relative z-10 border-t border-line">
-      <div className="mx-auto max-w-[1400px] px-6 py-10">
+      <div className="mx-auto max-w-[1600px] px-6 py-6">
         <div className="flex flex-wrap items-start justify-between gap-6">
           <div className="max-w-md">
             <div className="mb-2 flex items-center gap-2.5">
               <SandwichMark />
-              <span className="text-sm font-semibold">Sandwich Radar</span>
+              <span className="text-[0.8125rem] font-semibold tracking-[0.04em] uppercase">Sandwich Radar</span>
             </div>
             <p className="text-xs leading-relaxed text-ink-faint">
               Research and execution tooling, not financial advice. Model output is an estimate of expected cost

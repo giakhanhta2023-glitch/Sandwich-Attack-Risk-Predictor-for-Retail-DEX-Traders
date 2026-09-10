@@ -16,7 +16,7 @@ export { Skeleton } from '@/components/ui/skeleton'
  * and gap Card ships with are cleared here so each panel sets its own.
  */
 export function Panel({ className, ...props }: ComponentProps<typeof Card>) {
-  return <Card className={cn('panel gap-0 py-0 shadow-none', className)} {...props} />
+  return <Card className={cn('panel gap-0 rounded-sm py-0 shadow-none', className)} {...props} />
 }
 
 export function Section({
@@ -35,16 +35,16 @@ export function Section({
   className?: string
 }) {
   return (
-    <section id={id} className={cn('relative z-10 mx-auto w-full max-w-[1400px] px-6 py-20', className)}>
+    <section id={id} className={cn('relative z-10 mx-auto w-full max-w-[1600px] px-6 py-10', className)}>
       {(eyebrow || title) && (
-        <header className="mb-10 max-w-3xl">
+        <header className="mb-6 max-w-3xl">
           {eyebrow && <div className="eyebrow mb-3">{eyebrow}</div>}
           {title && (
-            <h2 className="text-[2rem] leading-[1.1] font-semibold tracking-[-0.03em] text-ink md:text-[2.75rem]">
+            <h2 className="text-[1.375rem] leading-tight font-semibold tracking-[-0.01em] text-ink md:text-[1.625rem]">
               {title}
             </h2>
           )}
-          {lede && <p className="mt-4 text-[0.975rem] leading-relaxed text-ink-dim">{lede}</p>}
+          {lede && <p className="mt-2 max-w-2xl text-[0.8125rem] leading-relaxed text-ink-dim">{lede}</p>}
         </header>
       )}
       {children}
@@ -67,36 +67,40 @@ export function Stat({
 }) {
   return (
     <div>
-      <div className="eyebrow mb-1.5">{label}</div>
+      <div className="eyebrow mb-1">{label}</div>
       <div
         className={cn(
           'num font-semibold',
-          { sm: 'text-lg', md: 'text-2xl', lg: 'text-[2.5rem] leading-none' }[size],
+          { sm: 'text-base', md: 'text-xl', lg: 'text-[2rem] leading-none tracking-[-0.02em]' }[size],
           { neutral: 'text-ink', hot: 'text-hot', cool: 'text-cool', warn: 'text-warn' }[tone],
         )}
       >
         {value}
       </div>
-      {sub && <div className="mt-1 text-xs text-ink-faint">{sub}</div>}
+      {sub && <div className="num mt-1 text-[0.6875rem] text-ink-faint">{sub}</div>}
     </div>
   )
 }
 
 type Tone = 'neutral' | 'hot' | 'cool' | 'warn' | 'info'
 
+// Tone is carried by the border and the label, not by a filled background.
 const BADGE_TONES: Record<Tone, string> = {
-  neutral: 'border-line-bright bg-transparent text-ink-dim',
-  hot: 'border-hot/40 bg-hot/10 text-hot',
-  cool: 'border-cool/40 bg-cool/10 text-cool',
-  warn: 'border-warn/40 bg-warn/10 text-warn',
-  info: 'border-info/40 bg-info/10 text-info',
+  neutral: 'border-line text-ink-dim',
+  hot: 'border-hot/50 text-hot',
+  cool: 'border-cool/50 text-cool',
+  warn: 'border-warn/50 text-warn',
+  info: 'border-line-bright text-ink-dim',
 }
 
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: Tone }) {
   return (
     <ShadBadge
       variant="outline"
-      className={cn('rounded-full font-mono text-[0.6875rem] font-normal tracking-wide', BADGE_TONES[tone])}
+      className={cn(
+        'rounded-sm bg-transparent px-1.5 py-0 font-mono text-[0.625rem] font-normal tracking-wide uppercase',
+        BADGE_TONES[tone],
+      )}
     >
       {children}
     </ShadBadge>
@@ -106,7 +110,7 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
 export function LiveDot({ live }: { live: boolean }) {
   return (
     <span
-      className={cn('inline-block h-1.5 w-1.5 rounded-full', live ? 'bg-cool pulse-dot' : 'bg-ink-faint')}
+      className={cn('inline-block size-1.5', live ? 'bg-cool pulse-dot' : 'bg-line-bright')}
       aria-label={live ? 'live' : 'offline'}
     />
   )
@@ -130,7 +134,7 @@ export function Bar({
   tone?: keyof typeof BAR_TONES
 }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
-  return <Progress value={pct} className={cn('h-1.5 bg-line', BAR_TONES[tone])} />
+  return <Progress value={pct} className={cn('h-1 rounded-none bg-line', BAR_TONES[tone])} />
 }
 
 
@@ -169,23 +173,21 @@ export function Disclosure({
     <Collapsible open={isOpen} onOpenChange={setOpen} className={className}>
       <CollapsibleTrigger
         className={cn(
-          'group flex w-full items-center gap-3 rounded-xl border border-line px-4 py-3 text-left',
-          'transition-colors hover:border-line-bright hover:bg-raised/40',
+          'group flex w-full items-center gap-2.5 rounded-sm border border-line bg-surface px-3 py-2 text-left',
+          'transition-colors hover:border-line-bright hover:bg-raised',
         )}
       >
         <ChevronDown
           className={cn(
-            'size-4 shrink-0 text-ink-faint transition-transform duration-200',
+            'size-3.5 shrink-0 text-ink-faint transition-transform duration-150',
             isOpen && 'rotate-180',
           )}
         />
         <span className="min-w-0">
-          <span className="block text-sm font-medium text-ink">{label}</span>
-          {hint && <span className="block text-xs text-ink-faint">{hint}</span>}
+          <span className="block text-[0.8125rem] font-medium text-ink">{label}</span>
+          {hint && <span className="block text-[0.6875rem] text-ink-faint">{hint}</span>}
         </span>
-        <span className="num ml-auto shrink-0 text-[0.6875rem] text-ink-faint">
-          {isOpen ? 'hide' : 'show'}
-        </span>
+        <span className="eyebrow ml-auto shrink-0">{isOpen ? 'hide' : 'show'}</span>
       </CollapsibleTrigger>
       {/* Height is deliberately not animated. Hand-rolled collapsible-down/up
           keyframes collided with the identically named ones tw-animate-css
@@ -194,7 +196,7 @@ export function Disclosure({
           the content keeps its natural height and only opacity is animated,
           which cannot collapse layout if it goes wrong. */}
       <CollapsibleContent>
-        <div className="pt-5 duration-200 data-[state=open]:animate-in data-[state=open]:fade-in">
+        <div className="pt-3 duration-150 data-[state=open]:animate-in data-[state=open]:fade-in">
           {children}
         </div>
       </CollapsibleContent>

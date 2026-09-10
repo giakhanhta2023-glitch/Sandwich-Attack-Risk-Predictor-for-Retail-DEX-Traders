@@ -52,17 +52,17 @@ export function CorpusDashboard() {
       title="Risk is not spread evenly"
       lede="Attack rates across the labelled corpus. The pattern is consistent: sandwiches concentrate where a wide tolerance meets a thin pool, and almost vanish where the pool's own fee tier costs the searcher more than the trade is worth."
     >
-      <Panel className="mb-5 grid gap-px overflow-hidden bg-line sm:grid-cols-2 lg:grid-cols-4">
-        <div className="bg-ground p-5">
+      <Panel className="mb-4 grid gap-px overflow-hidden bg-line sm:grid-cols-2 lg:grid-cols-4">
+        <div className="bg-ground p-4">
           <Stat label="Swaps analysed" value={stats.total_swaps?.toLocaleString()} />
         </div>
-        <div className="bg-ground p-5">
+        <div className="bg-ground p-4">
           <Stat label="Sandwiches detected" value={stats.total_sandwiches?.toLocaleString()} tone="hot" />
         </div>
-        <div className="bg-ground p-5">
+        <div className="bg-ground p-4">
           <Stat label="Overall attack rate" value={pct(stats.overall_attack_rate ?? 0, 2)} tone="hot" />
         </div>
-        <div className="bg-ground p-5">
+        <div className="bg-ground p-4">
           <Stat
             label="Median loss when hit"
             value={bps(stats.median_loss_bps ?? 0)}
@@ -72,8 +72,8 @@ export function CorpusDashboard() {
         </div>
       </Panel>
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Panel className="p-5">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel className="p-4">
           <div className="eyebrow mb-1">By tolerance</div>
           <h3 className="mb-1 text-base font-semibold">Attack rate vs the slippage you set</h3>
           <p className="mb-4 text-xs text-ink-faint">
@@ -88,7 +88,7 @@ export function CorpusDashboard() {
           />
         </Panel>
 
-        <Panel className="p-5">
+        <Panel className="p-4">
           <div className="eyebrow mb-1">By trade size</div>
           <h3 className="mb-1 text-base font-semibold">Attack rate vs notional</h3>
           <p className="mb-4 text-xs text-ink-faint">
@@ -108,7 +108,7 @@ export function CorpusDashboard() {
         </Panel>
       </div>
 
-      <Panel className="mt-5 p-5">
+      <Panel className="mt-4 p-4">
         <div className="eyebrow mb-1">By pool</div>
         <h3 className="mb-4 text-base font-semibold">Where the extraction happens</h3>
         <div className="-mx-5 overflow-x-auto px-5">
@@ -196,12 +196,12 @@ function RateChart({ data }: { data: RateRow[] }) {
               return active && row ? <RateTooltipView row={row} /> : null
             }}
           />
-          <RBar dataKey="rate" radius={[0, 3, 3, 0]} isAnimationActive={false}>
+          <RBar dataKey="rate" radius={0} isAnimationActive={false}>
             {data.map((d) => (
               <Cell
                 key={d.label}
                 fill="var(--hot)"
-                fillOpacity={0.35 + 0.65 * (d.rate / max)}
+                fillOpacity={0.45 + 0.55 * (d.rate / max)}
               />
             ))}
           </RBar>
@@ -213,7 +213,7 @@ function RateChart({ data }: { data: RateRow[] }) {
 
 function RateTooltipView({ row }: { row: RateRow }) {
   return (
-    <div className="rounded-lg border border-line-bright bg-void/95 px-3 py-2 backdrop-blur-sm">
+    <div className="rounded-sm border border-line-bright bg-void px-2.5 py-1.5">
       <div className="num text-[0.6875rem] text-ink">{row.label}</div>
       <div className="num text-[0.625rem] text-hot">{pct(row.rate, 2)} sandwiched</div>
       <div className="num text-[0.625rem] text-ink-faint">{row.detail}</div>
@@ -259,7 +259,7 @@ export function ModelCard() {
       lede="Gradient-boosted trees with isotonic calibration, split chronologically by block so no future regime leaks backwards. Calibration matters more than ranking here: the recommendation multiplies this probability by a dollar loss, so a confidently wrong score produces a confidently wrong slippage."
     >
       {serving?.mode === 'fallback' && (
-        <Panel className="mb-5 border-warn/40 bg-warn/5 p-5">
+        <Panel className="mb-4 border-l-2 border-l-warn p-4">
           <div className="eyebrow mb-2 text-warn">Not the predictor running here</div>
           <p className="text-sm leading-relaxed text-ink">
             The metrics below describe the trained model. This deployment is scoring with{' '}
@@ -271,8 +271,8 @@ export function ModelCard() {
         </Panel>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-2">
-        <Panel className="p-5">
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel className="p-4">
           <div className="eyebrow mb-4">Held-out performance</div>
           <div className="grid grid-cols-2 gap-5">
             <Stat label="ROC AUC" value={m.roc_auc.toFixed(3)} tone="cool" />
@@ -290,7 +290,7 @@ export function ModelCard() {
           </p>
         </Panel>
 
-        <Panel className="p-5">
+        <Panel className="p-4">
           <div className="eyebrow mb-1">Feature importance</div>
           <h3 className="mb-4 text-base font-semibold">Permutation importance on held-out data</h3>
           <ImportanceChart items={report.feature_importance.slice(0, 10)} />
@@ -315,7 +315,7 @@ export function ModelCard() {
         </Panel>
       </div>
 
-      <Panel className="mt-5 border-warn/25 p-5">
+      <Panel className="mt-4 border-warn/40 p-4">
         <div className="eyebrow mb-3 text-warn">Known limitations</div>
         <ul className="grid gap-2.5 text-xs leading-relaxed text-ink-dim md:grid-cols-2">
           <li>
@@ -399,7 +399,7 @@ function ReliabilityPlot({ bins }: { bins: ModelReport['metrics']['reliability']
 
 function CalibrationTooltipView({ row }: { row: ReliabilityBin }) {
   return (
-    <div className="num rounded-lg border border-line-bright bg-void/95 px-3 py-2 text-[0.625rem] backdrop-blur-sm">
+    <div className="num rounded-sm border border-line-bright bg-void px-2.5 py-1.5 text-[0.625rem]">
       <div className="text-ink">predicted {pct(row.predicted, 1)}</div>
       <div className="text-cool">observed {pct(row.observed, 1)}</div>
       <div className="text-ink-faint">{row.count.toLocaleString()} swaps</div>
@@ -428,7 +428,7 @@ function ImportanceChart({ items }: { items: ModelReport['feature_importance'] }
               const row = payload?.[0]?.payload as ImportanceRow | undefined
               if (!active || !row) return null
               return (
-                <div className="num rounded-lg border border-line-bright bg-void/95 px-3 py-2 text-[0.625rem] backdrop-blur-sm">
+                <div className="num rounded-sm border border-line-bright bg-void px-2.5 py-1.5 text-[0.625rem]">
                   <div className="text-ink">{row.feature}</div>
                   <div className="text-info">
                     {row.importance.toFixed(4)} ± {row.std.toFixed(4)}
@@ -437,7 +437,7 @@ function ImportanceChart({ items }: { items: ModelReport['feature_importance'] }
               )
             }}
           />
-          <RBar dataKey="importance" fill="var(--info)" radius={[0, 3, 3, 0]} isAnimationActive={false} />
+          <RBar dataKey="importance" fill="var(--info)" radius={0} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -468,9 +468,9 @@ export function MethodologySection() {
       title="Where the numbers come from"
       lede="Two ingestion paths, one detector, one optimiser. Every figure on this page is either measured from a swap stream or derived in closed form from the constant-product curve — nothing is a fudge factor except the two calibration constants named below."
     >
-      <div className="grid gap-5 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3">
         {Object.entries(meth.sources).map(([chain, s]) => (
-          <Panel key={chain} className="p-5">
+          <Panel key={chain} className="p-4">
             <div className="mb-3 flex items-center justify-between">
               <div className="eyebrow">{chain}</div>
               <span className="flex items-center gap-2 text-[0.6875rem] text-ink-faint">
@@ -483,14 +483,14 @@ export function MethodologySection() {
           </Panel>
         ))}
 
-        <Panel className="p-5">
+        <Panel className="p-4">
           <div className="eyebrow mb-3">Detection</div>
           <h3 className="mb-2 text-base font-semibold">Confirming a sandwich</h3>
           <p className="mb-3 text-xs text-ink-dim">{meth.detection.pattern}</p>
           <ul className="space-y-1.5">
             {meth.detection.criteria.map((c) => (
               <li key={c} className="flex gap-2 text-xs text-ink-dim">
-                <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-hot" />
+                <span className="mt-1.5 size-1 shrink-0 bg-hot" />
                 {c}
               </li>
             ))}
@@ -502,7 +502,7 @@ export function MethodologySection() {
         </Panel>
       </div>
 
-      <Panel className="mt-5 p-5">
+      <Panel className="mt-4 p-4">
         <div className="eyebrow mb-1">The optimisation</div>
         <h3 className="mb-3 text-base font-semibold">Objective and closed forms</h3>
         <div className="space-y-3">
@@ -512,12 +512,12 @@ export function MethodologySection() {
         <p className="mt-3 text-xs leading-relaxed text-ink-dim">{meth.optimisation.note}</p>
       </Panel>
 
-      <Panel className="mt-5 p-5">
+      <Panel className="mt-4 p-4">
         <div className="eyebrow mb-1">Ethereum ingestion</div>
         <h3 className="mb-4 text-base font-semibold">The BigQuery that labels the corpus</h3>
         <div className="space-y-2">
           {meth.bigquery_sql.map((q) => (
-            <div key={q.name} className="overflow-hidden rounded-lg border border-line">
+            <div key={q.name} className="overflow-hidden rounded-sm border border-line">
               <Button
                 variant="ghost"
                 onClick={() => setOpenSql(openSql === q.name ? null : q.name)}
@@ -544,7 +544,7 @@ export function MethodologySection() {
 
 function Formula({ label, body }: { label: string; body: string }) {
   return (
-    <div className="rounded-lg border border-line bg-void px-4 py-3">
+    <div className="rounded-sm border border-line bg-void px-3 py-2">
       <div className="eyebrow mb-1.5">{label}</div>
       <code className="num block overflow-x-auto whitespace-pre text-xs text-cool">{body}</code>
     </div>

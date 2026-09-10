@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Slider } from '@/components/ui/slider'
-import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -79,12 +78,12 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
       title="Price your next swap before you sign it"
       lede="Pick a pool and a size. The model scores sandwich probability from live execution conditions, then solves for the slippage tolerance that minimises what the trade is expected to cost you."
     >
-      <div className="grid gap-5 lg:grid-cols-[minmax(300px,340px)_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(270px,300px)_1fr]">
         {/* ---------------- controls ---------------- */}
-        <Panel className="h-fit p-5 lg:sticky lg:top-20">
-          <div className="eyebrow mb-4">Trade</div>
+        <Panel className="h-fit p-3 lg:sticky lg:top-14">
+          <div className="eyebrow mb-3">Trade</div>
 
-          <Label htmlFor="pool" className="mb-1.5 text-xs font-normal text-ink-dim">
+          <Label htmlFor="pool" className="eyebrow mb-1">
             Pool
           </Label>
           <Select value={poolId} onValueChange={setPoolId}>
@@ -122,10 +121,10 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
           )}
 
           <div className="mb-1.5 flex items-baseline justify-between">
-            <Label htmlFor="size" className="text-xs font-normal text-ink-dim">
+            <Label htmlFor="size" className="eyebrow">
               Trade size
             </Label>
-            <span className="num text-xs text-ink">{usd(notional, 0)}</span>
+            <span className="num text-[0.6875rem] text-ink">{usd(notional, 0)}</span>
           </div>
           <Slider
             id="size"
@@ -144,10 +143,10 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
           />
 
           <div className="mt-5 mb-1.5 flex items-baseline justify-between">
-            <Label htmlFor="slip" className="text-xs font-normal text-ink-dim">
+            <Label htmlFor="slip" className="eyebrow">
               Your slippage tolerance
             </Label>
-            <span className="num text-xs text-ink">{bps(slippage)}</span>
+            <span className="num text-[0.6875rem] text-ink">{bps(slippage)}</span>
           </div>
           <Slider
             id="slip"
@@ -165,32 +164,43 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
             format={(s) => (s < 100 ? `${s}bp` : `${s / 100}%`)}
           />
 
-          <label
-            htmlFor="relay"
-            className={cn(
-              'mt-5 flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2.5 transition-colors',
-              privateRelay ? 'border-cool/40 bg-cool/10' : 'border-line hover:border-line-bright',
-            )}
-          >
-            <span>
-              <span className={cn('block text-xs font-medium', privateRelay ? 'text-cool' : 'text-ink')}>
-                Private orderflow
+          <div className="mt-4">
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <span className="eyebrow">Routing</span>
+              <span className="text-[0.625rem] text-ink-faint">
+                {pool?.chain === 'solana' ? 'Jito bundle' : 'Flashbots Protect'}
               </span>
-              <span className="block text-[0.6875rem] text-ink-faint">
-                {pool?.chain === 'solana' ? 'Jito bundle / private RPC' : 'Flashbots Protect'}
-              </span>
-            </span>
-            <Switch
-              id="relay"
-              checked={privateRelay}
-              onCheckedChange={setPrivateRelay}
-              className="data-[state=checked]:bg-cool"
-            />
-          </label>
+            </div>
+            {/* Two mutually exclusive states read faster as a segmented control
+                than as a switch, and the labels name what each one does. */}
+            <div className="grid grid-cols-2 border border-line">
+              {[
+                { on: false, label: 'Public mempool' },
+                { on: true, label: 'Private' },
+              ].map((opt, i) => (
+                <button
+                  key={opt.label}
+                  onClick={() => setPrivateRelay(opt.on)}
+                  aria-pressed={privateRelay === opt.on}
+                  className={cn(
+                    'px-2 py-1.5 text-[0.6875rem] transition-colors',
+                    i === 1 && 'border-l border-line',
+                    privateRelay === opt.on
+                      ? opt.on
+                        ? 'bg-cool/15 text-cool'
+                        : 'bg-raised text-ink'
+                      : 'text-ink-faint hover:bg-raised hover:text-ink-dim',
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {result && (
             <>
-              <Separator className="my-4 bg-line" />
+              <Separator className="my-3 bg-line" />
               <Disclosure label="Execution conditions" hint="Gas, tips and how long you are exposed">
                 <div className="space-y-2 text-[0.6875rem] text-ink-faint">
                   <Row label={result.market.cost_label} value={usd(result.market.attack_cost_usd)} />
@@ -207,9 +217,9 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
         </Panel>
 
         {/* ---------------- results ---------------- */}
-        <div className="min-w-0 space-y-5">
+        <div className="min-w-0 space-y-4">
           {error && (
-            <Panel className="border-hot/40 p-5 text-sm text-hot">
+            <Panel className="border-hot/50 p-4 text-sm text-hot">
               Could not reach the risk API. Is the backend running on port 8000?
               <div className="mt-2 font-mono text-xs text-ink-faint">{error}</div>
             </Panel>
@@ -226,14 +236,14 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
             <div className={cn('transition-opacity', loading && 'opacity-60')}>
               <Verdict result={result} onApply={(b) => setSlippage(Math.round(b))} />
 
-              <Panel className="mt-5 p-5">
+              <Panel className="mt-4 p-4">
                 <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
                   <div>
                     <div className="eyebrow mb-1">The sweet spot</div>
                     <h3 className="text-lg font-semibold">Where expected cost bottoms out</h3>
                   </div>
                   <div className="text-right">
-                    <div className="num text-3xl font-semibold text-cool">
+                    <div className="num text-2xl font-semibold tracking-[-0.02em] text-cool">
                       {bps(result.sweet_spot.slippage_bps)}
                     </div>
                     <div className="text-[0.6875rem] text-ink-faint">
@@ -244,7 +254,7 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                   </div>
                 </div>
                 {result.sweet_spot.at_grid_floor && (
-                  <p className="mb-3 rounded-lg border border-warn/25 bg-warn/8 px-3 py-2 text-xs leading-relaxed text-warn">
+                  <p className="mb-3 border-l-2 border-l-warn bg-transparent px-3 py-1.5 text-[0.6875rem] leading-relaxed text-warn">
                     Every tolerance in range is worth attacking here, so the objective just wants the smallest
                     one — this is a floor, not a fine-tuned number. The real levers are private routing and
                     splitting the order.
@@ -266,7 +276,7 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                 label="Show the working"
                 hint="What the bot earns, why the model scored it this way, and the full split ladder"
               >
-                <div className="grid gap-5 md:grid-cols-2">
+                <div className="grid gap-4 md:grid-cols-2">
                   <AttackerLedger result={result} />
                   <Drivers result={result} />
                 </div>
@@ -292,7 +302,7 @@ function PresetRow<T extends number>({
   format: (v: T) => string
 }) {
   return (
-    <div className="flex gap-1.5">
+    <div className="flex gap-1">
       {options.map((o) => (
         <Button
           key={o}
@@ -300,10 +310,10 @@ function PresetRow<T extends number>({
           size="sm"
           onClick={() => onSelect(o)}
           className={cn(
-            'num h-7 flex-1 px-1 text-[0.6875rem] font-normal',
+            'num h-6 flex-1 rounded-none px-1 text-[0.625rem] font-normal',
             current === o
-              ? 'border-ink-faint bg-raised text-ink'
-              : 'border-line bg-transparent text-ink-faint hover:border-line-bright hover:bg-raised hover:text-ink-dim',
+              ? 'border-line-bright bg-raised text-ink'
+              : 'border-line bg-transparent text-ink-faint hover:bg-raised hover:text-ink-dim',
           )}
         >
           {format(o)}
@@ -331,21 +341,21 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
   return (
     <Panel className="overflow-hidden">
       <div className="grid gap-px bg-line sm:grid-cols-[1.15fr_1fr_1fr]">
-        <div className={`bg-ground p-5 bg-risk-${band}`}>
+        <div className={`bg-ground p-4 accent-${band}`}>
           <div className="eyebrow mb-2">Sandwich probability</div>
-          <div className={`num text-[2.75rem] leading-none font-semibold risk-${band}`}>
+          <div className={`num text-[2.25rem] leading-none font-semibold tracking-[-0.03em] risk-${band}`}>
             {(risk.p_attack * 100).toFixed(1)}
-            <span className="text-xl">%</span>
+            <span className="text-lg text-ink-faint">%</span>
           </div>
-          <div className={`mt-2 text-xs font-medium uppercase tracking-wider risk-${band}`}>{band} risk</div>
-          <p className="mt-3 text-xs leading-relaxed text-ink-dim">
+          <div className={`eyebrow mt-1.5 risk-${band}`}>{band} risk</div>
+          <p className="mt-2.5 text-[0.6875rem] leading-relaxed text-ink-dim">
             {economics.attack_is_profitable
               ? `A searcher nets ${usd(economics.attacker_profit_usd)} from this trade at your current tolerance.`
               : 'A sandwich on this trade loses a searcher money, so the attack is not worth running.'}
           </p>
         </div>
 
-        <div className="bg-ground p-5">
+        <div className="bg-ground p-4">
           <Stat
             label="Expected cost now"
             value={usd(current_setting.expected_cost_usd)}
@@ -362,7 +372,7 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
           </div>
         </div>
 
-        <div className="flex flex-col justify-between bg-ground p-5">
+        <div className="flex flex-col justify-between bg-ground p-4">
           <Stat
             label="You would save"
             value={saving > 0 ? usd(saving) : usd(0)}
@@ -373,7 +383,7 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
           <Button
             onClick={() => onApply(sweet_spot.slippage_bps)}
             variant="outline"
-            className="mt-4 w-full border-cool/40 bg-cool/10 text-xs font-medium text-cool hover:bg-cool/20 hover:text-cool"
+            className="num mt-3 h-8 w-full rounded-sm border-cool/50 bg-transparent text-[0.6875rem] font-medium text-cool hover:bg-cool/10 hover:text-cool"
           >
             Apply {bps(sweet_spot.slippage_bps)} →
           </Button>
@@ -388,7 +398,7 @@ function AttackerLedger({ result }: { result: Analysis }) {
   const e = result.economics
 
   return (
-    <Panel className="p-5">
+    <Panel className="p-4">
       <div className="eyebrow mb-1">Searcher's ledger</div>
       <h3 className="mb-4 text-base font-semibold">What the bot makes on you</h3>
 
@@ -412,7 +422,7 @@ function AttackerLedger({ result }: { result: Analysis }) {
         </div>
       </div>
 
-      <Separator className="my-4 bg-line" />
+      <Separator className="my-3 bg-line" />
 
       <div className="space-y-3">
         <div>
@@ -487,7 +497,7 @@ function Drivers({ result }: { result: Analysis }) {
   const max = Math.max(...drivers.map((d) => Math.abs(d.delta)), 0.01)
 
   return (
-    <Panel className="p-5">
+    <Panel className="p-4">
       <div className="eyebrow mb-1">Model attribution</div>
       <h3 className="mb-1 text-base font-semibold">Why this score</h3>
       <p className="mb-4 text-xs text-ink-faint">
@@ -510,11 +520,11 @@ function Drivers({ result }: { result: Analysis }) {
                 </span>
               </div>
               {/* diverging bar: reduces risk to the left, increases to the right */}
-              <div className="flex h-1.5 overflow-hidden rounded-full bg-line">
+              <div className="flex h-1 overflow-hidden bg-line">
                 <div className="flex w-1/2 justify-end">
                   {d.delta < 0 && (
                     <div
-                      className="h-full rounded-l-full bg-cool"
+                      className="h-full bg-cool"
                       style={{ width: `${(Math.abs(d.delta) / max) * 100}%` }}
                     />
                   )}
@@ -522,7 +532,7 @@ function Drivers({ result }: { result: Analysis }) {
                 <div className="flex w-1/2">
                   {d.delta > 0 && (
                     <div
-                      className="h-full rounded-r-full bg-hot"
+                      className="h-full bg-hot"
                       style={{ width: `${(d.delta / max) * 100}%` }}
                     />
                   )}
@@ -533,7 +543,7 @@ function Drivers({ result }: { result: Analysis }) {
         </div>
       )}
 
-      <Separator className="my-4 bg-line" />
+      <Separator className="my-3 bg-line" />
       <div className="space-y-1.5 text-[0.6875rem] text-ink-faint">
         <Row label="How closely bots watch this pool" value={pct(result.risk.searcher_presence)} />
         <Row label="Chance your trade fails and retries" value={pct(result.risk.p_revert)} />
@@ -550,7 +560,7 @@ function SplitLadder({ result }: { result: Analysis }) {
   const maxCost = Math.max(...plans.map((p) => p.expected_cost_usd))
 
   return (
-    <Panel className="mt-5 p-5">
+    <Panel className="mt-4 p-4">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <div className="eyebrow mb-1">Order splitting</div>
@@ -626,9 +636,9 @@ const REC_TONES = {
 
 function Recommendations({ result }: { result: Analysis }) {
   return (
-    <div className="mt-5 grid gap-4 md:grid-cols-2">
+    <div className="mt-4 grid gap-4 md:grid-cols-2">
       {result.recommendations.map((r, i) => (
-        <Panel key={i} className="p-5">
+        <Panel key={i} className="p-4">
           <div className="mb-2.5 flex items-center justify-between gap-3">
             <Badge tone={REC_TONES[r.severity].badge}>{REC_TONES[r.severity].label}</Badge>
             {r.impact_usd > 0.01 && (

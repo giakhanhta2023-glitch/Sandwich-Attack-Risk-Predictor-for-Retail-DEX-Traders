@@ -72,20 +72,9 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
 
   return (
     <div>
-      <div className="h-[320px] w-full">
+      <div className="h-[280px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 24, left: 4 }}>
-            <defs>
-              <linearGradient id="gradAttack" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--hot)" stopOpacity={0.5} />
-                <stop offset="100%" stopColor="var(--hot)" stopOpacity={0.06} />
-              </linearGradient>
-              <linearGradient id="gradExecution" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--info)" stopOpacity={0.35} />
-                <stop offset="100%" stopColor="var(--info)" stopOpacity={0.04} />
-              </linearGradient>
-            </defs>
-
             <CartesianGrid stroke="var(--line)" vertical={false} />
 
             <XAxis
@@ -124,23 +113,27 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
               type="monotone"
               dataKey="execution"
               stackId="cost"
-              stroke="none"
-              fill="url(#gradExecution)"
+              stroke="var(--info)"
+              strokeWidth={1}
+              fill="var(--info)"
+              fillOpacity={0.14}
               isAnimationActive={false}
             />
             <Area
               type="monotone"
               dataKey="attack"
               stackId="cost"
-              stroke="none"
-              fill="url(#gradAttack)"
+              stroke="var(--hot)"
+              strokeWidth={1}
+              fill="var(--hot)"
+              fillOpacity={0.16}
               isAnimationActive={false}
             />
             <Line
               type="monotone"
               dataKey="total"
               stroke="var(--ink)"
-              strokeWidth={2}
+              strokeWidth={1.5}
               dot={false}
               activeDot={{ r: 3.5, fill: 'var(--ink)' }}
               isAnimationActive={false}
@@ -186,10 +179,10 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
 
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-faint">
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-hot/60" /> sandwich risk
+          <span className="h-2 w-2 bg-hot/70" /> sandwich risk
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-sm bg-info/50" /> revert, retry &amp; chase
+          <span className="h-2 w-2 bg-info/70" /> revert, retry &amp; chase
         </span>
         <span className="flex items-center gap-1.5">
           <span className="h-px w-4 bg-ink" /> total controllable cost
@@ -223,7 +216,7 @@ type Row = CurvePoint & { attack: number; execution: number; total: number }
 
 function CostTooltipView({ row }: { row: Row }) {
   return (
-    <div className="rounded-lg border border-line-bright bg-void/95 px-3 py-2 shadow-lg backdrop-blur-sm">
+    <div className="rounded-sm border border-line-bright bg-void px-2.5 py-1.5">
       <div className="num text-[0.6875rem] text-ink">{bps(row.slippage_bps)} tolerance</div>
       <div className="num mt-1.5 space-y-0.5 text-[0.625rem]">
         <div className="flex justify-between gap-4 text-hot">

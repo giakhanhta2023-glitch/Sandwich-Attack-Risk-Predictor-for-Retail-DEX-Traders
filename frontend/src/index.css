@@ -2,44 +2,47 @@
 @import "tw-animate-css";
 
 /* ------------------------------------------------------------------
-   Design tokens.
+   Quantitative terminal.
 
-   Two layers that have to agree:
+   The rules this layer enforces, because they are what separate a
+   trading surface from a marketing page:
 
-   1. The raw palette (void/ground/surface/ink/hot/cool...). A narrow set:
-      a near-black ground, one hot colour for extraction and one cool
-      colour for safety, so risk reads instantly without a legend.
-   2. shadcn/ui's semantic tokens (--background, --primary, --border...),
-      mapped onto that palette so Radix-backed components inherit the
-      same look instead of shipping their own neutral grey.
-
-   The app is dark-only by design -- it is a trading surface meant to sit
-   next to a wallet -- so the dark values live directly on :root, and .dark
-   repeats them for any component that gates on the class.
+   - Separation is done with 1px borders, never shadow, blur or
+     gradient. A raised card implies a physical metaphor that means
+     nothing next to a price.
+   - Two functional hues only: emerald for safe/optimal, crimson for
+     risk/loss. They appear as text or a 1-2px border accent. A tinted
+     panel behind a number makes the number harder to read and says
+     nothing the colour of the number itself does not.
+   - Everything numeric is monospaced and tabular, so digits align down
+     a column and magnitudes are comparable without reading.
+   - Radius is 2px. Pills and 14px cards read as consumer software.
    ------------------------------------------------------------------ */
 
 :root {
-  /* raw palette */
-  --void: #07080a;
-  --ground: #0b0d10;
-  --surface: #101318;
-  --raised: #161a21;
-  --line: #1e232c;
-  --line-bright: #2b323d;
+  /* ground: pitch black page, near-black surfaces for hierarchy */
+  --void: #000000;
+  --ground: #09090b;
+  --surface: #0c0c0e;
+  --raised: #131316;
+  --line: #262626;        /* neutral-800 */
+  --line-bright: #3f3f46; /* neutral-700 */
 
-  --ink: #e8eaef;
-  --ink-dim: #9aa2b1;
-  --ink-faint: #626b7a;
+  /* type */
+  --ink: #ffffff;         /* prominent figures */
+  --ink-dim: #a3a3a3;     /* neutral-400, structural labels */
+  --ink-faint: #737373;   /* neutral-500, subtext */
 
-  --hot: #ff5c33;
-  --hot-dim: #a13315;
-  --warn: #f5a524;
-  --cool: #2ee6a8;
-  --cool-dim: #12876a;
-  --info: #5b8dff;
+  /* functional accents, used sparingly */
+  --hot: #ef4444;         /* risk / loss */
+  --hot-dim: #7f1d1d;
+  --warn: #f59e0b;        /* the single mid-tone */
+  --cool: #10b981;        /* safe / optimal */
+  --cool-dim: #065f46;
+  --info: #71717a;        /* second data series: neutral, not a third hue */
 
   /* shadcn semantic layer */
-  --radius: 0.75rem;
+  --radius: 0.125rem;
   --background: var(--void);
   --foreground: var(--ink);
   --card: var(--surface);
@@ -55,12 +58,11 @@
   --accent: var(--raised);
   --accent-foreground: var(--ink);
   --destructive: var(--hot);
-  --destructive-foreground: var(--void);
+  --destructive-foreground: var(--ink);
   --border: var(--line);
   --input: var(--line);
   --ring: var(--line-bright);
 
-  /* chart series, consumed by Recharts through var(--color-chart-N) */
   --chart-1: var(--hot);
   --chart-2: var(--info);
   --chart-3: var(--cool);
@@ -123,13 +125,13 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --radius-xl: 3px;
 
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 @layer base {
@@ -152,78 +154,62 @@
        which silently breaks position:sticky on the header. */
     overflow-x: clip;
   }
-
-  /* Fine grid over the page. Keeps large dark areas from reading as flat
-     empty space without adding visual noise at text size. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background-image:
-      linear-gradient(rgba(255, 255, 255, 0.016) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.016) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: radial-gradient(ellipse 100% 60% at 50% 0%, #000 30%, transparent 78%);
-  }
 }
 
 /* --- typography ------------------------------------------------- */
 
+/* Every figure on the page: tabular, so digits line up down a column and
+   two numbers of the same magnitude occupy the same width. */
 .num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  font-feature-settings: "tnum", "zero";
+  letter-spacing: -0.01em;
 }
 
 .eyebrow {
   font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  letter-spacing: 0.18em;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-faint);
 }
 
-/* --- surfaces --------------------------------------------------- */
+/* --- surfaces ----------------------------------------------------
+   Flat fill plus a 1px border. No gradient, no inset highlight, no
+   shadow: hierarchy comes from the border and the fill step between
+   --void and --surface.
+   ----------------------------------------------------------------- */
 
 .panel {
-  background: linear-gradient(180deg, rgba(22, 26, 33, 0.9), rgba(16, 19, 24, 0.9));
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 2px;
   position: relative;
 }
 
-/* Hairline highlight along the top edge, the way physical panels catch light */
-.panel::after {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent);
-  border-radius: 14px 14px 0 0;
-  pointer-events: none;
-}
+/* --- risk ramp ---------------------------------------------------
+   Colour lives on the numeral, not behind it. `.accent-*` is a 2px
+   inset rule for the one place a band must be findable without being
+   read; a tinted panel would wash out the figure it contains.
+   ----------------------------------------------------------------- */
 
-/* --- risk colour ramp ------------------------------------------- */
+.risk-minimal  { color: var(--cool); }
+.risk-low      { color: var(--cool); }
+.risk-elevated { color: var(--warn); }
+.risk-high     { color: var(--hot); }
+.risk-severe   { color: var(--hot); }
 
-.risk-minimal { color: var(--cool); }
-.risk-low     { color: #7ddba4; }
-.risk-elevated{ color: var(--warn); }
-.risk-high    { color: #ff8a4c; }
-.risk-severe  { color: var(--hot); }
+.accent-minimal,
+.accent-low      { box-shadow: inset 2px 0 0 var(--cool); }
+.accent-elevated { box-shadow: inset 2px 0 0 var(--warn); }
+.accent-high,
+.accent-severe   { box-shadow: inset 2px 0 0 var(--hot); }
 
-.bg-risk-minimal { background-color: color-mix(in srgb, var(--cool) 14%, transparent); }
-.bg-risk-low     { background-color: color-mix(in srgb, #7ddba4 14%, transparent); }
-.bg-risk-elevated{ background-color: color-mix(in srgb, var(--warn) 14%, transparent); }
-.bg-risk-high    { background-color: color-mix(in srgb, #ff8a4c 14%, transparent); }
-.bg-risk-severe  { background-color: color-mix(in srgb, var(--hot) 16%, transparent); }
+/* --- Recharts ----------------------------------------------------- */
 
-/* --- Recharts ---------------------------------------------------- */
-
-.recharts-surface {
-  overflow: visible;
-}
+.recharts-surface { overflow: visible; }
 
 .recharts-cartesian-axis-tick text {
   font-family: var(--font-mono);
@@ -235,32 +221,20 @@
   stroke: var(--line);
 }
 
-.recharts-default-legend {
-  font-size: 11px;
-}
+/* --- motion ------------------------------------------------------
+   State changes only. Entrance animations on a dashboard delay the
+   data for no informational gain.
+   ------------------------------------------------------------------ */
 
-/* --- motion ------------------------------------------------------ */
-
-@keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.rise {
-  animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes pulse-dot {
+@keyframes blink {
   0%, 100% { opacity: 1; }
-  50%      { opacity: 0.35; }
+  50%      { opacity: 0.3; }
 }
 
-.pulse-dot {
-  animation: pulse-dot 2s ease-in-out infinite;
-}
+.pulse-dot { animation: blink 2s steps(1, end) infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise, .pulse-dot { animation: none; }
+  .pulse-dot { animation: none; }
   html { scroll-behavior: auto; }
 }
 
@@ -269,8 +243,7 @@
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: var(--void); }
 ::-webkit-scrollbar-thumb {
-  background: var(--line-bright);
-  border-radius: 5px;
+  background: var(--line);
   border: 3px solid var(--void);
 }
-::-webkit-scrollbar-thumb:hover { background: #3a424f; }
+::-webkit-scrollbar-thumb:hover { background: var(--line-bright); }
