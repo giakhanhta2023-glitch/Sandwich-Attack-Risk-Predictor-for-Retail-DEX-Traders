@@ -94,6 +94,43 @@ A searcher's profit falls faster than trade size, so `n` small victims can each 
 less than the bundle costs to run. Splitting is not free: you pay gas per chunk and hold
 market risk for the duration, both of which are charged in the objective.
 
+**Live:** https://sandwich-attack-risk-predictor-for.vercel.app
+
+---
+
+## Deployment
+
+Vercel, git-connected: every push to `main` builds the Vite frontend as static
+output and `api/index.py` as a Python function wrapping the FastAPI app.
+
+The deployed function does **not** carry scikit-learn. The full stack is ~370MB
+unpacked against a 250MB function limit, so the serving path was restructured to
+need none of it — feature medians and corpus aggregates are precomputed at
+training time into small JSON files. Sandwich probability therefore comes from
+the closed-form economics rather than the calibrated model, and the site says so
+in a banner on the model card. Everything else — the AMM math, the sweet-spot
+optimiser, the split ladder, the corpus — is identical to a local run.
+
+To run the trained model in production you need a host that fits a ~210MB
+Python runtime (Fly, Render, Railway, a container on Cloud Run). Point the
+frontend at it with `VITE_API_TARGET`; nothing else changes, because the
+predictor loads the artifacts whenever scikit-learn is importable.
+
+Environment variables are set in the Vercel dashboard, not in the repo. To turn
+the database on there, add `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`
+(the publishable key is RLS-constrained and safe to expose). Leave them unset
+and the app falls back to the static pool registry, which is what it currently
+does in production.
+
+Two platform behaviours worth recording, both of which cost a debugging cycle:
+
+- Vercel decides whether a file in `api/` is a function by inspecting it
+  statically. Binding `app` inside a `try`/`except` makes detection fail and the
+  **whole build** error with "the pattern doesn't match any Serverless
+  Functions". `api/index.py` exports a top-level `async def app` and imports
+  FastAPI lazily.
+- `excludeFiles` in the `functions` config broke that same detection.
+
 ---
 
 ## Running it
