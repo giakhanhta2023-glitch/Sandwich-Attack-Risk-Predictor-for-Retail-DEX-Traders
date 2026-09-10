@@ -182,6 +182,18 @@ def train(n_blocks: int = 4000, seed: int = 7, verbose: bool = True) -> dict[str
     }
     (ARTIFACT_DIR / "model_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
+    # Also record the run in the database when one is configured, so metrics are
+    # a time series instead of a file that each run overwrites.
+    try:
+        from ..db.repository import record_model_run
+
+        run_id = record_model_run(report)
+        if run_id and verbose:
+            print(f"recorded model run {run_id}")
+    except Exception as exc:  # never fail a training run over telemetry
+        if verbose:
+            print(f"model run not recorded: {exc}")
+
     # keep the frame so the dashboard can show real distributions
     DATA_DIR.mkdir(exist_ok=True)
     frame.to_parquet(DATA_DIR / "training_frame.parquet", index=False)

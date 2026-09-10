@@ -17,7 +17,7 @@ import math
 import time
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -36,7 +36,9 @@ from ..core.optimizer import (
     revert_probability,
     baseline_impact_usd,
 )
-from ..core.pools import get_pool, list_pools, market_snapshot
+from ..core.pools import get_pool, list_pools, market_snapshot, refresh_registry
+from ..db import repository as repo
+from ..db.client import DatabaseUnavailable, db_status
 from ..ingestion.bigquery_eth import describe_queries
 from ..ml.predictor import get_predictor
 from .config import settings
@@ -131,7 +133,40 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "model_trained": predictor.trained,
         "sources": settings.source_status(),
+        "database": db_status(),
     }
+
+
+@app.get("/api/db/status")
+def database_status() -> dict[str, Any]:
+    """Storage-layer health: connectivity, row counts and ingestion freshness."""
+    status = db_status()
+    if not status["readable"]:
+        return {**status, "counts": {}, "ingestion": [], "model_runs": []}
+    return {
+        **status,
+        "counts": repo.counts(),
+        "ingestion": repo.ingestion_health(),
+        "model_runs": repo.model_run_history(limit=10),
+        "recent_sandwiches": repo.recent_sandwiches(limit=20),
+    }
+
+
+@app.post("/api/db/sync-pools")
+def sync_pools() -> dict[str, Any]:
+    """Push the static pool registry into the database.
+
+    Run once after adding a service key; the registry stays the source of truth
+    for seeded pools, and this makes the foreign keys resolve for ingestion.
+    """
+    from ..ingestion.synthetic import default_universe
+
+    try:
+        written = repo.sync_pools(default_universe())
+    except DatabaseUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    refresh_registry()
+    return {"synced": written}
 
 
 @app.get("/api/pools")
@@ -186,7 +221,7 @@ def methodology() -> dict[str, Any]:
 
 
 @app.post("/api/analyze")
-def analyze(req: AnalyzeRequest) -> dict[str, Any]:
+def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
     pool = get_pool(req.pool_id)
     if pool is None:
         raise HTTPException(404, f"Unknown pool: {req.pool_id}")
@@ -234,6 +269,32 @@ def analyze(req: AnalyzeRequest) -> dict[str, Any]:
     current_cost = next(
         (p for p in spot.curve if abs(p["slippage_bps"] - req.slippage_bps) < 1.5),
         min(spot.curve, key=lambda p: abs(p["slippage_bps"] - req.slippage_bps)),
+    )
+
+    background.add_task(
+        repo.log_analysis,
+        {
+            "pool_id": req.pool_id,
+            "chain": pool["chain"],
+            "notional_usd": round(req.notional_usd, 2),
+            "slippage_bps": round(req.slippage_bps, 2),
+            "private_relay": req.private_relay,
+            "hour_of_day": hour,
+            "p_attack": round(ml["p_attack"], 6),
+            "risk_band": ml["risk_band"],
+            "searcher_presence": round(ctx.bot_activity, 6),
+            "expected_loss_usd": round(ml["expected_loss_usd"], 2),
+            "recommended_slippage_bps": spot.slippage_bps,
+            "critical_slippage_bps": round(spot.critical_slippage_bps, 2),
+            "at_grid_floor": spot.at_grid_floor,
+            "expected_cost_usd": round(spot.expected_cost_usd, 2),
+            "savings_vs_current_usd": round(
+                current_cost["expected_cost_usd"] - spot.expected_cost_usd, 2
+            ),
+            "recommended_chunks": best_split.chunks,
+            "model_source": ml["source"],
+            "data_source": "chain" if settings.helius_live else "simulated",
+        },
     )
 
     return {
@@ -514,10 +575,33 @@ def live_solana(
 
     swaps = fetch_pool_swaps(pool_address, limit=limit)
     events = detect_sandwiches(swaps)
+
+    # Persist, so each pull adds to a corpus rather than being thrown away.
+    # This is the path that eventually replaces the simulated training data.
+    persisted: dict[str, Any] = {"stored": False}
+    if swaps:
+        try:
+            persisted = {
+                "stored": True,
+                "swaps_written": repo.insert_swaps(swaps),
+                "events_written": repo.insert_sandwich_events(events),
+            }
+            repo.update_cursor(
+                "helius:solana",
+                last_block=max(s.block for s in swaps),
+                swaps_ingested=len(swaps),
+                events_detected=len(events),
+            )
+        except DatabaseUnavailable as exc:
+            persisted = {"stored": False, "reason": str(exc)}
+        except Exception as exc:  # ingestion must still return what it found
+            persisted = {"stored": False, "reason": f"{type(exc).__name__}: {exc}"}
+
     return {
         "pool_address": pool_address,
         "swaps_scanned": len(swaps),
         "sandwiches_found": len(events),
         "events": [e.to_dict() for e in events[:50]],
+        "persistence": persisted,
         "source": "helius-live",
     }

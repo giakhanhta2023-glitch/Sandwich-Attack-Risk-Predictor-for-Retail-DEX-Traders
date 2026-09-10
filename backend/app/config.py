@@ -37,11 +37,25 @@ _load_dotenv()
 @dataclass(frozen=True)
 class Settings:
     helius_api_key: str = os.getenv("HELIUS_API_KEY", "")
+    # Supabase. The publishable key is safe to ship: RLS constrains it to the
+    # public research tables. The service key bypasses RLS and must never be
+    # committed or sent anywhere but the database.
+    supabase_url: str = os.getenv("SUPABASE_URL", "")
+    supabase_publishable_key: str = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
+    supabase_service_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     helius_rpc_url: str = os.getenv("HELIUS_RPC_URL", "")
     bigquery_project: str = os.getenv("BIGQUERY_PROJECT", "")
     google_credentials: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     max_blocks_per_pull: int = int(os.getenv("MAX_BLOCKS_PER_PULL", "200"))
     bigquery_max_bytes: int = int(os.getenv("BIGQUERY_MAX_BYTES", str(20 * 1024**3)))
+
+    @property
+    def db_configured(self) -> bool:
+        return bool(self.supabase_url and (self.supabase_publishable_key or self.supabase_service_key))
+
+    @property
+    def db_writable(self) -> bool:
+        return bool(self.supabase_url and self.supabase_service_key)
 
     @property
     def helius_live(self) -> bool:
@@ -58,6 +72,17 @@ class Settings:
 
     def source_status(self) -> dict[str, dict[str, object]]:
         return {
+            "database": {
+                "provider": "Supabase Postgres",
+                "live": self.db_configured,
+                "detail": (
+                    "persisting swaps, detections and model runs"
+                    if self.db_writable
+                    else "read-only: add SUPABASE_SERVICE_KEY to persist"
+                    if self.db_configured
+                    else "set SUPABASE_URL + SUPABASE_PUBLISHABLE_KEY to enable"
+                ),
+            },
             "solana": {
                 "provider": "Helius",
                 "live": self.helius_live,

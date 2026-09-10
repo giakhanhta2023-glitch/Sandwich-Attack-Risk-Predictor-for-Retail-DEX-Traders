@@ -114,6 +114,45 @@ Tests:
 python -m pytest tests -q
 ```
 
+### Database
+
+Schema lives in Supabase Postgres (six tables, three aggregate views):
+
+| Table | Holds |
+|---|---|
+| `pools` | pool registry — TVL, fee tier, volatility; refreshable without a redeploy |
+| `swaps` | normalised swap stream with execution ordering preserved |
+| `sandwich_events` | detected attacks with the victim's counterfactual output |
+| `ingestion_cursors` | per-source watermarks so pulls resume instead of rescanning |
+| `analyses` | every risk query and what was recommended |
+| `model_runs` | training metrics over time, so drift is visible |
+
+`swaps` and `sandwich_events` are the point of the whole thing: each live pull
+appends to them, which is how the corpus stops being simulated and starts being
+measured.
+
+**Security.** RLS is on for every table, and grants are separate from policies —
+`anon` gets `SELECT` on the four public research tables and nothing else. There
+is no public write path anywhere; ingestion and telemetry go through the service
+role. `analyses` (query telemetry) and `ingestion_cursors` (scheduler state) are
+denied at both the grant and policy layer.
+
+```
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...   # RLS-constrained, safe to ship
+SUPABASE_SERVICE_KEY=                         # secret; required for writes
+```
+
+Without `SUPABASE_SERVICE_KEY` the app runs read-only against the database.
+Without any Supabase config at all it falls back to the static registry and the
+Parquet corpus, so a fresh checkout still works with no credentials.
+
+After adding a service key, seed the registry once:
+
+```bash
+curl -X POST http://localhost:8000/api/db/sync-pools
+```
+
 ### Live data (optional)
 
 Without credentials the project runs on a built-in simulator and labels every figure
@@ -162,7 +201,8 @@ tests/                  41 tests over the invariants, detector, optimiser and AP
 | Backend | FastAPI + Uvicorn, Pydantic v2 |
 | ML | scikit-learn — `HistGradientBoosting` classifier (isotonic-calibrated) + regressor |
 | Inference | In-process on the backend; models loaded once into a singleton |
-| Storage | Flat files — `joblib` artifacts, Parquet corpus. No database |
+| Database | **Supabase Postgres** — pools, swaps, detected sandwiches, telemetry, model runs |
+| Storage | `joblib` model artifacts on disk; corpus in Postgres, Parquet as the offline fallback |
 | Chain data | **Solana via Helius** (primary), Ethereum via BigQuery `crypto_ethereum` |
 
 The models run server-side rather than in the browser because six of the twenty features
@@ -190,6 +230,10 @@ shipping both the math engine and a converted model just to reproduce one probab
   auction is a coin flip the features cannot observe, so no model reaches 1.0 on this
   label.
 - **Single-hop, single-pool.** Multi-hop routes and aggregator splits are not scored.
+- **The write path is unverified end to end.** Reads, RLS enforcement and the
+  degradation paths are tested against the live database, but inserts require a
+  service_role key that was deliberately never handled here. `insert_swaps` and
+  `insert_sandwich_events` are exercised only against their refusal behaviour.
 - **Boundary solutions on Solana.** A failed Solana transaction costs a fraction of a
   cent, so once a trade is attackable at all the optimiser often wants the tightest
   tolerance in range. The API flags that case (`at_grid_floor`) and the UI says the
