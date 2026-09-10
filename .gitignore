@@ -8,8 +8,14 @@ dist/
 .env
 .env.local
 *.log
+# Trained model binaries stay out of the repo -- they are ~1.4MB and the slim
+# serverless deployment cannot load them anyway (scikit-learn does not fit).
 backend/artifacts/*.joblib
-backend/artifacts/*.json
+# ...but the small JSON the serving path actually reads is tracked, so a
+# deployment has the training metrics and the corpus aggregates without needing
+# pandas, pyarrow, or the 13MB parquet.
+!backend/artifacts/model_report.json
+!backend/artifacts/corpus_summary.json
 backend/data/*.parquet
 backend/data/*.csv
 .DS_Store

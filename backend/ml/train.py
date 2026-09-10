@@ -167,6 +167,11 @@ def train(n_blocks: int = 4000, seed: int = 7, verbose: bool = True) -> dict[str
     dump(clf, ARTIFACT_DIR / "sandwich_classifier.joblib")
     dump(reg, ARTIFACT_DIR / "loss_regressor.joblib")
 
+    # Medians for the predictor's ablation attribution. Precomputed here so the
+    # serving path never opens the corpus -- that is what lets pandas/pyarrow
+    # stay out of the deployed function.
+    feature_medians = {c: float(frame[c].median()) for c in FEATURE_COLUMNS}
+
     report = {
         "trained_at": int(time.time()),
         "training_seconds": round(time.time() - started, 1),
@@ -178,6 +183,7 @@ def train(n_blocks: int = 4000, seed: int = 7, verbose: bool = True) -> dict[str
         "features": FEATURE_COLUMNS,
         "metrics": metrics,
         "feature_importance": importance,
+        "feature_medians": feature_medians,
         "pool_priors": pool_priors,
     }
     (ARTIFACT_DIR / "model_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -194,7 +200,16 @@ def train(n_blocks: int = 4000, seed: int = 7, verbose: bool = True) -> dict[str
         if verbose:
             print(f"model run not recorded: {exc}")
 
-    # keep the frame so the dashboard can show real distributions
+    # Precomputed dashboard aggregates: a few KB that deploy anywhere, versus a
+    # 13MB parquet that would need pyarrow at runtime to read.
+    from ..core.pools import aggregate_corpus
+
+    summary = aggregate_corpus(frame)
+    (ARTIFACT_DIR / "corpus_summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
+
+    # the full frame stays for local analysis, and is not deployed
     DATA_DIR.mkdir(exist_ok=True)
     frame.to_parquet(DATA_DIR / "training_frame.parquet", index=False)
 

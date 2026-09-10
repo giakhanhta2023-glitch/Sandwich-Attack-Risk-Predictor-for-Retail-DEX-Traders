@@ -23,10 +23,24 @@ import math
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from joblib import load
-
 from ..app.config import ARTIFACT_DIR
+
+# The scientific stack is optional at serving time.
+#
+# scikit-learn pulls in scipy and numpy -- around 200MB unpacked, which does not
+# fit a serverless function alongside everything else. Where it is present the
+# calibrated model scores; where it is absent the wrapper falls back to the
+# closed-form economics, and `serving_mode()` reports which is live so the UI can
+# say so rather than quietly presenting a heuristic as the model.
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover - exercised by the slim deployment
+    np = None
+
+try:
+    from joblib import load
+except ImportError:  # pragma: no cover
+    load = None
 from ..core.features import FEATURE_COLUMNS, build_features, to_vector
 
 # features worth explaining to a user -- the rest are context, not levers
@@ -73,27 +87,55 @@ class RiskPredictor:
         reg_path = self.dir / "loss_regressor.joblib"
         rep_path = self.dir / "model_report.json"
 
-        if clf_path.exists():
-            self.classifier = load(clf_path)
-        if reg_path.exists():
-            self.regressor = load(reg_path)
+        # the report is plain JSON, so metrics stay readable even in a slim
+        # deployment that cannot load the models themselves
+        if load is not None and np is not None:
+            if clf_path.exists():
+                self.classifier = load(clf_path)
+            if reg_path.exists():
+                self.regressor = load(reg_path)
         if rep_path.exists():
             self.report = json.loads(rep_path.read_text(encoding="utf-8"))
 
-        # medians for ablation, from the training frame when it is around
-        frame_path = self.dir.parent / "data" / "training_frame.parquet"
-        if frame_path.exists():
-            try:
-                import pandas as pd
-
-                frame = pd.read_parquet(frame_path, columns=FEATURE_COLUMNS)
-                self.medians = {c: float(frame[c].median()) for c in FEATURE_COLUMNS}
-            except Exception:
-                self.medians = {}
+        # Medians for ablation attribution come from the report, which the
+        # trainer precomputes. Reading them from the corpus instead would drag
+        # pandas and pyarrow into every deployment for a handful of floats.
+        self.medians = {
+            c: float(v)
+            for c, v in (self.report.get("feature_medians") or {}).items()
+            if c in FEATURE_COLUMNS
+        }
 
     @property
     def trained(self) -> bool:
-        return self.classifier is not None
+        return self.classifier is not None and np is not None
+
+    @property
+    def has_report(self) -> bool:
+        """Training metrics are available even when the model itself is not."""
+        return bool(self.report)
+
+    def serving_mode(self) -> dict[str, Any]:
+        """Which predictor is actually answering requests."""
+        if self.trained:
+            return {
+                "mode": "trained",
+                "detail": "gradient-boosted trees, isotonic-calibrated",
+            }
+        reason = (
+            "model artifacts are not present in this deployment"
+            if np is not None
+            else "the scientific stack (scikit-learn/numpy) is not installed here"
+        )
+        return {
+            "mode": "fallback",
+            "detail": f"closed-form economics -- {reason}",
+            "affects": (
+                "Sandwich probability is derived from attacker profitability rather than "
+                "the calibrated model. The AMM math, the sweet-spot optimiser, the split "
+                "ladder and the corpus are unaffected."
+            ),
+        }
 
     def pool_prior(self, pool_id: str) -> float:
         priors = self.report.get("pool_priors", {})

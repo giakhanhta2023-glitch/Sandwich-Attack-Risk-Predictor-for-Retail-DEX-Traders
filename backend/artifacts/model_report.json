@@ -1,0 +1,232 @@
+{
+  "trained_at": 1789008300,
+  "training_seconds": 77.1,
+  "data_source": "simulated",
+  "rows": 151823,
+  "train_rows": 106296,
+  "test_rows": 45527,
+  "split": "chronological by block",
+  "features": [
+    "log_notional_usd",
+    "log_tvl_usd",
+    "size_over_tvl",
+    "slippage_bps",
+    "fee_bps",
+    "volatility_24h",
+    "attack_cost_usd",
+    "price_impact_bps",
+    "attacker_profit_usd",
+    "profit_over_cost",
+    "frontrun_capacity_usd",
+    "capacity_over_notional",
+    "swaps_per_block",
+    "is_private_relay",
+    "is_solana",
+    "is_stable_pair",
+    "token_age_days",
+    "hour_sin",
+    "hour_cos",
+    "pool_attack_rate_prior"
+  ],
+  "metrics": {
+    "roc_auc": 0.9894,
+    "pr_auc": 0.5926,
+    "brier": 0.01268,
+    "base_rate": 0.0269,
+    "reliability": [
+      {
+        "bin_lower": 0.0,
+        "bin_upper": 0.1,
+        "predicted": 0.0,
+        "observed": 0.0,
+        "count": 43154
+      },
+      {
+        "bin_lower": 0.2,
+        "bin_upper": 0.3,
+        "predicted": 0.2358,
+        "observed": 0.1667,
+        "count": 18
+      },
+      {
+        "bin_lower": 0.3,
+        "bin_upper": 0.4,
+        "predicted": 0.3498,
+        "observed": 0.3966,
+        "count": 58
+      },
+      {
+        "bin_lower": 0.4,
+        "bin_upper": 0.5,
+        "predicted": 0.4651,
+        "observed": 0.4546,
+        "count": 893
+      },
+      {
+        "bin_lower": 0.5,
+        "bin_upper": 0.6,
+        "predicted": 0.5402,
+        "observed": 0.5303,
+        "count": 941
+      },
+      {
+        "bin_lower": 0.6,
+        "bin_upper": 0.7,
+        "predicted": 0.6315,
+        "observed": 0.6364,
+        "count": 451
+      },
+      {
+        "bin_lower": 0.7,
+        "bin_upper": 0.8,
+        "predicted": 0.7247,
+        "observed": 0.7273,
+        "count": 11
+      }
+    ],
+    "loss_mae_bps": 49.22,
+    "loss_median_bps": 284.94
+  },
+  "feature_importance": [
+    {
+      "feature": "attacker_profit_usd",
+      "importance": 0.64281,
+      "std": 0.01052
+    },
+    {
+      "feature": "is_private_relay",
+      "importance": 0.22308,
+      "std": 0.02526
+    },
+    {
+      "feature": "capacity_over_notional",
+      "importance": 0.03858,
+      "std": 0.01284
+    },
+    {
+      "feature": "profit_over_cost",
+      "importance": 0.03425,
+      "std": 0.02585
+    },
+    {
+      "feature": "frontrun_capacity_usd",
+      "importance": 0.03063,
+      "std": 0.00525
+    },
+    {
+      "feature": "log_notional_usd",
+      "importance": 0.01905,
+      "std": 0.01807
+    },
+    {
+      "feature": "size_over_tvl",
+      "importance": 0.01265,
+      "std": 0.02151
+    },
+    {
+      "feature": "attack_cost_usd",
+      "importance": 0.00622,
+      "std": 0.0118
+    },
+    {
+      "feature": "swaps_per_block",
+      "importance": 0.00458,
+      "std": 0.00857
+    },
+    {
+      "feature": "volatility_24h",
+      "importance": 0.00287,
+      "std": 0.00066
+    },
+    {
+      "feature": "log_tvl_usd",
+      "importance": 0.00258,
+      "std": 0.00552
+    },
+    {
+      "feature": "slippage_bps",
+      "importance": 0.00246,
+      "std": 0.00573
+    },
+    {
+      "feature": "price_impact_bps",
+      "importance": 0.00171,
+      "std": 0.00288
+    },
+    {
+      "feature": "token_age_days",
+      "importance": 0.00111,
+      "std": 0.00027
+    },
+    {
+      "feature": "is_solana",
+      "importance": 0.00058,
+      "std": 0.0007
+    },
+    {
+      "feature": "is_stable_pair",
+      "importance": 0.0,
+      "std": 0.0
+    },
+    {
+      "feature": "hour_cos",
+      "importance": 0.0,
+      "std": 0.0
+    },
+    {
+      "feature": "fee_bps",
+      "importance": -0.00019,
+      "std": 7e-05
+    },
+    {
+      "feature": "pool_attack_rate_prior",
+      "importance": -0.00237,
+      "std": 0.00467
+    },
+    {
+      "feature": "hour_sin",
+      "importance": -0.00833,
+      "std": 0.00309
+    }
+  ],
+  "feature_medians": {
+    "log_notional_usd": 5.988471372628169,
+    "log_tvl_usd": 17.553180200057167,
+    "size_over_tvl": 1.635184737972727e-05,
+    "slippage_bps": 151.875,
+    "fee_bps": 25.0,
+    "volatility_24h": 0.05,
+    "attack_cost_usd": 1.0584884470634186,
+    "price_impact_bps": 25.145741378110877,
+    "attacker_profit_usd": -0.9886365593561803,
+    "profit_over_cost": -1.0,
+    "frontrun_capacity_usd": 99106.85863693233,
+    "capacity_over_notional": 242.1356093471723,
+    "swaps_per_block": 9.0,
+    "is_private_relay": 0.0,
+    "is_solana": 1.0,
+    "is_stable_pair": 0.0,
+    "token_age_days": 1200.0,
+    "hour_sin": 0.7071067811865476,
+    "hour_cos": 6.123233995736766e-17,
+    "pool_attack_rate_prior": 0.0
+  },
+  "pool_priors": {
+    "global_rate": 0.027903213667494542,
+    "orca-sol-usdc-wp": 0.01548282225933748,
+    "pump-newmint-a": 0.23717718395210147,
+    "pump-newmint-b": 0.2552857206115595,
+    "ray-bonk-sol": 0.018256196951796914,
+    "ray-sol-usdc": 0.0015840846931522335,
+    "ray-wif-sol": 0.028593750594047264,
+    "uni-v2-longtail-a": 0.10213532118451242,
+    "uni-v2-longtail-b": 0.08363332958205313,
+    "uni-v2-pepe-weth": 0.0086367253638763,
+    "uni-v2-shib-weth": 0.025822876042107833,
+    "uni-v2-weth-usdc": 0.0006062786934597727,
+    "uni-v3-link-weth-30": 0.004716382406390295,
+    "uni-v3-usdc-usdt-1": 0.023642783808812348,
+    "uni-v3-wbtc-weth-30": 0.0005025794968929133,
+    "uni-v3-weth-usdc-5": 0.0008951513456614954
+  }
+}

@@ -17,6 +17,7 @@ import math
 from functools import lru_cache
 from typing import Any, Literal
 
+from ..app.config import ARTIFACT_DIR
 from ..ingestion.synthetic import default_universe
 
 
@@ -243,6 +244,15 @@ def corpus_stats() -> dict[str, Any]:
     if measured is not None:
         return measured
 
+    # A precomputed summary is what ships to production: it is ~5KB against the
+    # corpus's 13MB, and reading it needs neither pandas nor pyarrow, which
+    # together are 160MB of dependencies a serverless function should not carry.
+    summary_path = ARTIFACT_DIR / "corpus_summary.json"
+    if summary_path.exists():
+        import json
+
+        return json.loads(summary_path.read_text(encoding="utf-8"))
+
     path = DATA_DIR / "training_frame.parquet"
     if not path.exists():
         return {"available": False, "reason": "run python -m backend.ml.train first"}
@@ -250,6 +260,15 @@ def corpus_stats() -> dict[str, Any]:
     import pandas as pd
 
     frame = pd.read_parquet(path)
+    return aggregate_corpus(frame)
+
+
+def aggregate_corpus(frame: Any) -> dict[str, Any]:
+    """Dashboard aggregates from a training frame.
+
+    Lives here rather than in the trainer so the shape the API serves and the
+    shape the trainer precomputes cannot drift apart.
+    """
     registry = _registry()
 
     by_pool = []

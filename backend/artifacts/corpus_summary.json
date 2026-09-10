@@ -1,0 +1,305 @@
+{
+  "available": true,
+  "data_source": "simulated",
+  "total_swaps": 151823,
+  "total_sandwiches": 4192,
+  "overall_attack_rate": 0.0276,
+  "total_victim_loss_usd": 1293439.79,
+  "median_loss_bps": 270.4,
+  "median_loss_usd": 74.59,
+  "by_pool": [
+    {
+      "pool_id": "pump-newmint-b",
+      "symbol": "MEMEV2/SOL",
+      "chain": "solana",
+      "venue": "Pump.fun / Raydium",
+      "tvl_usd": 60000.0,
+      "swaps": 3926,
+      "sandwiched": 1014,
+      "attack_rate": 0.2583,
+      "median_loss_bps": 310.5,
+      "total_loss_usd": 129799.18,
+      "median_victim_size_usd": 639.79
+    },
+    {
+      "pool_id": "pump-newmint-a",
+      "symbol": "PUMPCOIN/SOL",
+      "chain": "solana",
+      "venue": "Pump.fun / Raydium",
+      "tvl_usd": 180000.0,
+      "swaps": 5410,
+      "sandwiched": 1300,
+      "attack_rate": 0.2403,
+      "median_loss_bps": 286.9,
+      "total_loss_usd": 151287.09,
+      "median_victim_size_usd": 923.77
+    },
+    {
+      "pool_id": "uni-v2-longtail-a",
+      "symbol": "MICRO/WETH",
+      "chain": "ethereum",
+      "venue": "Uniswap V2",
+      "tvl_usd": 420000.0,
+      "swaps": 2198,
+      "sandwiched": 214,
+      "attack_rate": 0.0974,
+      "median_loss_bps": 311.5,
+      "total_loss_usd": 39434.82,
+      "median_victim_size_usd": 2991.59
+    },
+    {
+      "pool_id": "uni-v2-longtail-b",
+      "symbol": "NEWCOIN/WETH",
+      "chain": "ethereum",
+      "venue": "Uniswap V2",
+      "tvl_usd": 150000.0,
+      "swaps": 2178,
+      "sandwiched": 174,
+      "attack_rate": 0.0799,
+      "median_loss_bps": 366.2,
+      "total_loss_usd": 66440.82,
+      "median_victim_size_usd": 2627.04
+    },
+    {
+      "pool_id": "ray-wif-sol",
+      "symbol": "WIF/SOL",
+      "chain": "solana",
+      "venue": "Raydium",
+      "tvl_usd": 4100000.0,
+      "swaps": 10631,
+      "sandwiched": 295,
+      "attack_rate": 0.0277,
+      "median_loss_bps": 227.6,
+      "total_loss_usd": 153357.25,
+      "median_victim_size_usd": 8500.12
+    },
+    {
+      "pool_id": "uni-v2-shib-weth",
+      "symbol": "SHIB/WETH",
+      "chain": "ethereum",
+      "venue": "Uniswap V2",
+      "tvl_usd": 3200000.0,
+      "swaps": 3394,
+      "sandwiched": 83,
+      "attack_rate": 0.0245,
+      "median_loss_bps": 183.4,
+      "total_loss_usd": 31150.61,
+      "median_victim_size_usd": 10273.02
+    },
+    {
+      "pool_id": "uni-v3-usdc-usdt-1",
+      "symbol": "USDC/USDT",
+      "chain": "ethereum",
+      "venue": "Uniswap V3",
+      "tvl_usd": 90000000.0,
+      "swaps": 6479,
+      "sandwiched": 141,
+      "attack_rate": 0.0218,
+      "median_loss_bps": 159.9,
+      "total_loss_usd": 44552.8,
+      "median_victim_size_usd": 10572.97
+    },
+    {
+      "pool_id": "ray-bonk-sol",
+      "symbol": "BONK/SOL",
+      "chain": "solana",
+      "venue": "Raydium",
+      "tvl_usd": 6000000.0,
+      "swaps": 13070,
+      "sandwiched": 249,
+      "attack_rate": 0.0191,
+      "median_loss_bps": 186.2,
+      "total_loss_usd": 163489.77,
+      "median_victim_size_usd": 12668.45
+    },
+    {
+      "pool_id": "orca-sol-usdc-wp",
+      "symbol": "SOL/USDC Whirlpool",
+      "chain": "solana",
+      "venue": "Orca",
+      "tvl_usd": 45000000.0,
+      "swaps": 39714,
+      "sandwiched": 602,
+      "attack_rate": 0.0152,
+      "median_loss_bps": 149.9,
+      "total_loss_usd": 342717.68,
+      "median_victim_size_usd": 14632.09
+    },
+    {
+      "pool_id": "uni-v2-pepe-weth",
+      "symbol": "PEPE/WETH",
+      "chain": "ethereum",
+      "venue": "Uniswap V2",
+      "tvl_usd": 8500000.0,
+      "swaps": 5921,
+      "sandwiched": 54,
+      "attack_rate": 0.0091,
+      "median_loss_bps": 127.2,
+      "total_loss_usd": 39543.69,
+      "median_victim_size_usd": 20322.33
+    },
+    {
+      "pool_id": "uni-v3-link-weth-30",
+      "symbol": "LINK/WETH",
+      "chain": "ethereum",
+      "venue": "Uniswap V3",
+      "tvl_usd": 12000000.0,
+      "swaps": 2436,
+      "sandwiched": 9,
+      "attack_rate": 0.0037,
+      "median_loss_bps": 52.6,
+      "total_loss_usd": 5270.65,
+      "median_victim_size_usd": 28248.43
+    },
+    {
+      "pool_id": "ray-sol-usdc",
+      "symbol": "SOL/USDC",
+      "chain": "solana",
+      "venue": "Raydium",
+      "tvl_usd": 28000000.0,
+      "swaps": 25036,
+      "sandwiched": 40,
+      "attack_rate": 0.0016,
+      "median_loss_bps": 257.2,
+      "total_loss_usd": 84675.73,
+      "median_victim_size_usd": 50658.71
+    },
+    {
+      "pool_id": "uni-v3-weth-usdc-5",
+      "symbol": "WETH/USDC .05%",
+      "chain": "ethereum",
+      "venue": "Uniswap V3",
+      "tvl_usd": 180000000.0,
+      "swaps": 19512,
+      "sandwiched": 13,
+      "attack_rate": 0.0007,
+      "median_loss_bps": 98.9,
+      "total_loss_usd": 33405.38,
+      "median_victim_size_usd": 64641.64
+    },
+    {
+      "pool_id": "uni-v2-weth-usdc",
+      "symbol": "WETH/USDC",
+      "chain": "ethereum",
+      "venue": "Uniswap V2",
+      "tvl_usd": 42000000.0,
+      "swaps": 8090,
+      "sandwiched": 4,
+      "attack_rate": 0.0005,
+      "median_loss_bps": 182.4,
+      "total_loss_usd": 8314.33,
+      "median_victim_size_usd": 74884.49
+    },
+    {
+      "pool_id": "uni-v3-wbtc-weth-30",
+      "symbol": "WBTC/WETH",
+      "chain": "ethereum",
+      "venue": "Uniswap V3",
+      "tvl_usd": 65000000.0,
+      "swaps": 3828,
+      "sandwiched": 0,
+      "attack_rate": 0.0,
+      "median_loss_bps": 0.0,
+      "total_loss_usd": 0.0,
+      "median_victim_size_usd": 0.0
+    }
+  ],
+  "by_slippage": [
+    {
+      "bucket": "0-25bp",
+      "lower_bps": 0,
+      "upper_bps": 25,
+      "swaps": 9896,
+      "attack_rate": 0.0075,
+      "median_loss_bps": 15.2
+    },
+    {
+      "bucket": "25-50bp",
+      "lower_bps": 25,
+      "upper_bps": 50,
+      "swaps": 10469,
+      "attack_rate": 0.0185,
+      "median_loss_bps": 28.7
+    },
+    {
+      "bucket": "50-100bp",
+      "lower_bps": 50,
+      "upper_bps": 100,
+      "swaps": 34188,
+      "attack_rate": 0.0157,
+      "median_loss_bps": 72.9
+    },
+    {
+      "bucket": "100-200bp",
+      "lower_bps": 100,
+      "upper_bps": 200,
+      "swaps": 30105,
+      "attack_rate": 0.0296,
+      "median_loss_bps": 135.2
+    },
+    {
+      "bucket": "200-300bp",
+      "lower_bps": 200,
+      "upper_bps": 300,
+      "swaps": 10758,
+      "attack_rate": 0.0366,
+      "median_loss_bps": 235.3
+    },
+    {
+      "bucket": "300-500bp",
+      "lower_bps": 300,
+      "upper_bps": 500,
+      "swaps": 26533,
+      "attack_rate": 0.0234,
+      "median_loss_bps": 318.6
+    },
+    {
+      "bucket": "500-1000bp",
+      "lower_bps": 500,
+      "upper_bps": 1000,
+      "swaps": 17442,
+      "attack_rate": 0.052,
+      "median_loss_bps": 686.8
+    },
+    {
+      "bucket": "1000-6000bp",
+      "lower_bps": 1000,
+      "upper_bps": 6000,
+      "swaps": 12432,
+      "attack_rate": 0.0461,
+      "median_loss_bps": 1452.8
+    }
+  ],
+  "by_size": [
+    {
+      "bucket": "$0-$250",
+      "swaps": 58946,
+      "attack_rate": 0.0036,
+      "median_loss_usd": 6.92
+    },
+    {
+      "bucket": "$250-$1,000",
+      "swaps": 48973,
+      "attack_rate": 0.0232,
+      "median_loss_usd": 18.3
+    },
+    {
+      "bucket": "$1,000-$5,000",
+      "swaps": 34369,
+      "attack_rate": 0.0308,
+      "median_loss_usd": 60.13
+    },
+    {
+      "bucket": "$5,000-$25,000",
+      "swaps": 8633,
+      "attack_rate": 0.1687,
+      "median_loss_usd": 208.78
+    },
+    {
+      "bucket": "$25,000-$100,000",
+      "swaps": 856,
+      "attack_rate": 0.3621,
+      "median_loss_usd": 669.22
+    }
+  ]
+}

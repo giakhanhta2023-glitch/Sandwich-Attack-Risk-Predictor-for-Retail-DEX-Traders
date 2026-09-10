@@ -172,7 +172,14 @@ export interface CorpusStats {
   }>
 }
 
+export interface ServingMode {
+  mode: 'trained' | 'fallback'
+  detail: string
+  affects?: string
+}
+
 export interface ModelReport {
+  serving?: ServingMode
   trained_at: number
   training_seconds: number
   data_source: string
@@ -237,9 +244,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () =>
-    request<{ status: string; model_trained: boolean; sources: Methodology['sources'] }>(
-      '/api/health',
-    ),
+    request<{
+      status: string
+      model_trained: boolean
+      serving?: ServingMode
+      sources: Methodology['sources']
+    }>('/api/health'),
   pools: () => request<{ pools: Pool[]; count: number }>('/api/pools'),
   analyze: (body: {
     pool_id: string

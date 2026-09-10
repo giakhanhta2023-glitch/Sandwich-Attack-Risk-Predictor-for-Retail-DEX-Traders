@@ -132,6 +132,7 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "model_trained": predictor.trained,
+        "serving": predictor.serving_mode(),
         "sources": settings.source_status(),
         "database": db_status(),
     }
@@ -185,6 +186,10 @@ def model_report() -> dict[str, Any]:
         raise HTTPException(404, "No trained model. Run: python -m backend.ml.train")
     report = dict(predictor.report)
     report["feature_importance"] = report.get("feature_importance", [])[:12]
+    # The metrics describe the training run. Whether that model is the one
+    # answering /api/analyze right now is a separate question, so say which.
+    report["serving"] = predictor.serving_mode()
+    report.pop("feature_medians", None)
     return report
 
 

@@ -249,6 +249,7 @@ export function ModelCard() {
     )
 
   const m = report.metrics
+  const serving = report.serving
 
   return (
     <Section
@@ -257,6 +258,19 @@ export function ModelCard() {
       title="What the model is, and where it is weak"
       lede="Gradient-boosted trees with isotonic calibration, split chronologically by block so no future regime leaks backwards. Calibration matters more than ranking here: the recommendation multiplies this probability by a dollar loss, so a confidently wrong score produces a confidently wrong slippage."
     >
+      {serving?.mode === 'fallback' && (
+        <Panel className="mb-5 border-warn/40 bg-warn/5 p-5">
+          <div className="eyebrow mb-2 text-warn">Not the predictor running here</div>
+          <p className="text-sm leading-relaxed text-ink">
+            The metrics below describe the trained model. This deployment is scoring with{' '}
+            <strong>{serving.detail}</strong>.
+          </p>
+          {serving.affects && (
+            <p className="mt-2 text-xs leading-relaxed text-ink-dim">{serving.affects}</p>
+          )}
+        </Panel>
+      )}
+
       <div className="grid gap-5 lg:grid-cols-2">
         <Panel className="p-5">
           <div className="eyebrow mb-4">Held-out performance</div>
