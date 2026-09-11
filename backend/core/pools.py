@@ -98,21 +98,116 @@ def refresh_registry() -> None:
 
 
 def list_pools(chain: Literal["all", "ethereum", "solana"] = "all") -> list[dict[str, Any]]:
-    """Pools for the UI, Solana first.
+    """Pools for the UI: real measured pools first, then the reference registry.
 
-    Solana leads because it is the source that runs live on a free Helius key,
-    so the default view is the one a reader can actually reproduce against the
-    chain rather than the one that needs a GCP billing account.
+    The live pools are the real Solana pools where the scanner caught the
+    largest share of trades in sandwiches this week, described by what it
+    measured. The registry's pools are illustrative specs, kept as references.
+    Solana leads because it is the source that runs live.
     """
     pools = list(_registry().values())
     if chain != "all":
         pools = [p for p in pools if p["chain"] == chain]
-    return sorted(pools, key=lambda p: (p["chain"] != "solana", -p["tvl_usd"]))
+    pools = sorted(pools, key=lambda p: (p["chain"] != "solana", -p["tvl_usd"]))
+    if chain in ("all", "solana"):
+        pools = [dict(p) for p in live_pools()] + pools
+    return pools
 
 
 def get_pool(pool_id: str) -> dict[str, Any] | None:
-    pool = _registry().get(pool_id)
+    if pool_id.startswith(LIVE_POOL_PREFIX):
+        pool = _measured_pools().get(pool_id) or _measured_pool(pool_id[len(LIVE_POOL_PREFIX):])
+    else:
+        pool = _registry().get(pool_id)
     return dict(pool) if pool else None
+
+
+# --------------------------------------------------------------------------
+# live pools: real pools the scanner measured
+# --------------------------------------------------------------------------
+
+LIVE_POOL_PREFIX = "live:"
+LIVE_POOLS_SHOWN = 6
+LIVE_MIN_SWAPS = 150       # a rate on fewer swaps is noise
+LIVE_MIN_VICTIMS = 10
+# Not measured per pool, so set from the venues these pools trade on: Raydium
+# CPMM and PumpSwap both charge 0.25%, and a young memecoin swings about half
+# its value in a day.
+LIVE_FEE_BPS = 25.0
+LIVE_VOLATILITY = 0.5
+_measured_cache: tuple[float, dict[str, dict[str, Any]]] | None = None
+
+
+def _live_pool(r: dict[str, Any], sol_usd: float) -> dict[str, Any] | None:
+    """A real pool described by what the scanner saw over the last seven days --
+    swaps, the traders caught inside sandwiches, the average trade, quote-side
+    depth -- or None when there is too little flow to quote a rate."""
+    swaps = int(r.get("swaps") or 0)
+    victims = min(int(r.get("victims") or 0), swaps)
+    quote = r.get("quote_symbol")
+    tvl = float(r.get("est_tvl_usd") or 0)
+    if swaps < LIVE_MIN_SWAPS or victims < LIVE_MIN_VICTIMS or quote not in ("SOL", "USDC", "USDT") or tvl <= 0:
+        return None
+    quote_usd = sol_usd if quote == "SOL" else 1.0
+    pool_id = LIVE_POOL_PREFIX + r["pool_key"]
+    return {
+            "pool_id": pool_id,
+            "chain": "solana",
+            "symbol": f"{mint_label(r.get('base_mint'))}/{quote}",
+            "tvl_usd": tvl,
+            "fee_bps": LIVE_FEE_BPS,
+            "volatility_24h": LIVE_VOLATILITY,
+            "price_in_usd": quote_usd,
+            "swaps_per_block": 1.0,
+            "is_stable_pair": False,
+            "token_age_days": 7.0,
+            "venue": "Live pool \u00b7 measured on mainnet",
+            "live": True,
+            "measured": {
+                "swaps": swaps,
+                "victims": victims,
+                "sandwiches": int(r.get("sandwiches") or 0),
+                "victim_rate": round(victims / swaps, 5),
+                "avg_trade_usd": round(float(r.get("quote_volume") or 0) / swaps * quote_usd, 2),
+                "base_mint": r.get("base_mint"),
+                "window_days": 7,
+            },
+        }
+
+
+def _measured_pools() -> dict[str, dict[str, Any]]:
+    """The real pools where sandwiches caught the largest share of trades this
+    week, by pool id, refreshed on the same five-minute clock as the measured
+    corpus. Ranked in the database: taking the busiest pools first and ranking
+    those left out every pool a bot hammered for a day."""
+    global _measured_cache
+    now = time.monotonic()
+    if _measured_cache is not None and now - _measured_cache[0] <= MEASURED_TTL_SECONDS:
+        return _measured_cache[1]
+    from ..db.repository import hottest_pools, latest_sol_usd
+
+    sol_usd = latest_sol_usd() or 100.0
+    pools: dict[str, dict[str, Any]] = {}
+    for r in hottest_pools(LIVE_MIN_SWAPS, LIVE_MIN_VICTIMS):
+        pool = _live_pool(r, sol_usd)
+        if pool:
+            pools[pool["pool_id"]] = pool
+    _measured_cache = (now, pools)
+    return pools
+
+
+def _measured_pool(pool_key: str) -> dict[str, Any] | None:
+    """One real pool by key, so a pool that drops off the top list still resolves."""
+    from ..db.repository import latest_sol_usd, measured_pool
+
+    row = measured_pool(pool_key)
+    return _live_pool(row, latest_sol_usd() or 100.0) if row else None
+
+
+def live_pools() -> list[dict[str, Any]]:
+    """The real pools where sandwiches caught the largest share of trades this week."""
+    ranked = sorted(_measured_pools().values(), key=lambda p: -p["measured"]["victim_rate"])
+    return ranked[:LIVE_POOLS_SHOWN]
 
 
 # --------------------------------------------------------------------------

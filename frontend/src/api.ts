@@ -13,6 +13,21 @@ export interface Pool {
   token_age_days: number
   venue: string
   historical_attack_rate?: number
+  /** A real pool the live scanner measured, rather than a reference spec. */
+  live?: boolean
+  measured?: PoolMeasured
+}
+
+/** What the scanner saw in a real pool over the last week. */
+export interface PoolMeasured {
+  swaps: number
+  /** Trades caught between a bot's two legs. */
+  victims: number
+  sandwiches: number
+  victim_rate: number
+  avg_trade_usd: number
+  base_mint: string | null
+  window_days: number
 }
 
 export interface CurvePoint {
@@ -34,6 +49,9 @@ export interface LiveMarket {
   trained_at: string
   window_end: string
   roc_auc: number | null
+  /** For a real pool: its own measured rate, shrunk toward the model, before the size adjustment. */
+  pool_rate?: number | null
+  pool_measured?: PoolMeasured | null
   victim_pools: number
   top_pool_share: number
   /** Below the bar for an established model. Its number is still the one shown. */

@@ -45,9 +45,15 @@ def _artifact(**overrides):
 
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch):
-    """No test here may write to the real database or leak a cached model."""
+    """No test here may write to the real database, depend on what the live
+    scanner happens to have seen, or leak a cached model."""
+    from backend.core import pools
+
     monkeypatch.setattr(repository, "log_analysis", lambda *a, **k: None)
     monkeypatch.setattr(repository, "record_model_run", lambda *a, **k: None)
+    monkeypatch.setattr(repository, "hottest_pools", lambda *a, **k: [])
+    monkeypatch.setattr(repository, "measured_pool", lambda key: None)
+    monkeypatch.setattr(pools, "_measured_cache", None)
     live_model.load.cache_clear()
     yield
     live_model.load.cache_clear()
@@ -73,11 +79,13 @@ def client():
 
 
 def _pool_id(client, chain):
-    return client.get("/api/pools", params={"chain": chain}).json()["pools"][0]["pool_id"]
+    """A reference pool from the registry; live pools depend on what the scanner saw."""
+    pools = client.get("/api/pools", params={"chain": chain}).json()["pools"]
+    return next(p["pool_id"] for p in pools if not p.get("live"))
 
 
 def _thinnest_solana_pool(client):
-    pools = client.get("/api/pools", params={"chain": "solana"}).json()["pools"]
+    pools = [p for p in client.get("/api/pools", params={"chain": "solana"}).json()["pools"] if not p.get("live")]
     return min(pools, key=lambda p: p["tvl_usd"])["pool_id"]
 
 
@@ -338,6 +346,55 @@ def test_the_model_card_describes_the_live_model(serve, client):
     assert {f["feature"] for f in card["features"]} == LIVE_GROUPS
     weights = [abs(f["weight"]) for f in card["features"]]
     assert weights == sorted(weights, reverse=True)
+
+
+# --- real pools --------------------------------------------------------------
+
+HOT_ROW = {
+    "pool_key": "VaultA:VaultB", "base_mint": "4eFdaQK59uDMqQ2mZifiRwYcYt8Yi27zKgRg7fpSpump",
+    "quote_mint": "So11111111111111111111111111111111111111112", "quote_symbol": "SOL",
+    "swaps": 217, "sandwiches": 22, "victims": 113, "victim_rate": 0.52074,
+    "quote_volume": 217.0, "est_tvl_usd": 19800,
+}
+
+
+@pytest.fixture
+def hot_pool(monkeypatch):
+    """One real pool where half the trades this week were caught in a sandwich."""
+    monkeypatch.setattr(repository, "hottest_pools", lambda *a, **k: [HOT_ROW])
+    monkeypatch.setattr(repository, "measured_pool", lambda key: HOT_ROW if key == HOT_ROW["pool_key"] else None)
+    monkeypatch.setattr(repository, "latest_sol_usd", lambda: 100.0)
+    return "live:VaultA:VaultB"
+
+
+def test_real_pools_lead_the_list_with_what_was_measured(hot_pool, client):
+    first = client.get("/api/pools", params={"chain": "solana"}).json()["pools"][0]
+    assert first["pool_id"] == hot_pool and first["live"] is True
+    assert first["measured"]["victims"] == 113 and first["measured"]["swaps"] == 217
+    assert first["measured"]["avg_trade_usd"] == pytest.approx(100.0)
+    assert first["historical_attack_rate"] == pytest.approx(113 / 217, abs=1e-4)
+
+
+def test_a_real_pool_sets_the_level_and_the_model_only_adjusts_for_size(serve, hot_pool, client):
+    serve(_artifact())
+    at_average = _analyze(client, hot_pool, 100, 300)["risk"]["live_market"]
+    # at the pool's own average trade the chance is its measured rate, shrunk toward the model
+    assert at_average["p_attack"] == pytest.approx(at_average["pool_rate"], rel=1e-3)
+    assert 0.3 < at_average["pool_rate"] < 113 / 217
+    bigger = _analyze(client, hot_pool, 2_000, 300)["risk"]["live_market"]
+    smaller = _analyze(client, hot_pool, 20, 300)["risk"]["live_market"]
+    assert smaller["p_attack"] < at_average["p_attack"] < bigger["p_attack"] <= 0.95
+
+
+def test_a_real_pool_off_the_top_list_still_resolves(serve, hot_pool, monkeypatch, client):
+    serve(_artifact())
+    monkeypatch.setattr(repository, "hottest_pools", lambda *a, **k: [])
+    assert _analyze(client, hot_pool, 100, 300)["risk"]["live_market"]["pool_measured"]["victims"] == 113
+
+
+def test_an_unknown_real_pool_is_not_found(hot_pool, client):
+    res = client.post("/api/analyze", json={"pool_id": "live:nope", "notional_usd": 100, "slippage_bps": 50})
+    assert res.status_code == 404
 
 
 # --- measured corpus -------------------------------------------------------

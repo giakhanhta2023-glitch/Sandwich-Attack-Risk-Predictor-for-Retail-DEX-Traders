@@ -173,7 +173,10 @@ def pools(chain: Literal["all", "ethereum", "solana"] = "all") -> dict[str, Any]
     predictor = get_predictor()
     items = list_pools(chain)
     for item in items:
-        item["historical_attack_rate"] = round(predictor.pool_prior(item["pool_id"]), 4)
+        # a real pool's history is what the scanner measured in it
+        measured = item.get("measured")
+        prior = measured["victim_rate"] if measured else predictor.pool_prior(item["pool_id"])
+        item["historical_attack_rate"] = round(prior, 4)
     return {"pools": items, "count": len(items)}
 
 
@@ -243,6 +246,25 @@ LIVE_MAX_TOP_POOL_SHARE = 1 / 3
 _LOSS_BANDS = ((0.5, "minimal"), (3.0, "low"), (10.0, "elevated"), (30.0, "high"))
 
 
+# How many swaps' worth of weight the model's estimate carries against a real
+# pool's own measured rate.
+LIVE_PRIOR_SWAPS = 100
+
+
+def _shift_log_odds(level: float, p: float, ref: float) -> float:
+    """`level`, moved by however far `p` sits from `ref` in log-odds.
+
+    Never above 95%: some leaders run no sandwiching at all, so no trade is
+    certain to be reached.
+    """
+    def logit(x: float) -> float:
+        x = min(1 - 1e-6, max(1e-6, x))
+        return math.log(x / (1 - x))
+
+    z = logit(level) + logit(p) - logit(ref)
+    return min(0.95, 1.0 / (1.0 + math.exp(-max(-60.0, min(60.0, z)))))
+
+
 def loss_band(expected_loss_bps: float) -> str:
     """Risk label from the expected sandwich loss, in basis points of the trade."""
     return next((band for cap, band in _LOSS_BANDS if expected_loss_bps < cap), "severe")
@@ -267,15 +289,27 @@ def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) 
     info = live_model.info()
     if info is None:
         return None
+    depth = pool["tvl_usd"] / 2.0  # quote-side depth of a balanced pool
     p = live_model.predict(
-        size_usd=req.notional_usd,
-        depth_usd=pool["tvl_usd"] / 2.0,  # quote-side depth of a balanced pool
-        side="buy",
-        hour_utc=hour,
-        quote_symbol=_pool_quote(pool),
+        size_usd=req.notional_usd, depth_usd=depth, side="buy", hour_utc=hour, quote_symbol=_pool_quote(pool),
     )
     if p is None:
         return None
+
+    # A real pool's own measured rate sets the level, and the model supplies only
+    # how that rate shifts with this trade's size: a shift in log-odds from the
+    # pool's average trade. The measured rate is shrunk toward the model by a
+    # prior worth LIVE_PRIOR_SWAPS swaps, so a thin sample cannot claim certainty.
+    measured = pool.get("measured")
+    pool_rate = None
+    if measured:
+        typical = live_model.predict(
+            size_usd=measured["avg_trade_usd"] or req.notional_usd, depth_usd=depth,
+            side="buy", hour_utc=hour, quote_symbol=_pool_quote(pool),
+        )
+        if typical:
+            pool_rate = (measured["victims"] + LIVE_PRIOR_SWAPS * typical) / (measured["swaps"] + LIVE_PRIOR_SWAPS)
+            p = _shift_log_odds(pool_rate, p, typical)
     auc = (info.get("metrics") or {}).get("roc_auc")
     positives = int(info.get("positives") or 0)
     # An artifact from before these were recorded counts as concentrated.
@@ -295,6 +329,8 @@ def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) 
         shortfalls.append(f"no pool above {LIVE_MAX_TOP_POOL_SHARE:.0%} of victims (top has {top_share:.0%})")
     return {
         "p_attack": round(p, 6),
+        "pool_rate": round(pool_rate, 5) if pool_rate is not None else None,
+        "pool_measured": measured,
         "rows": info.get("rows"),
         "positives": positives,
         "weighted_swaps": info.get("weighted_swaps"),

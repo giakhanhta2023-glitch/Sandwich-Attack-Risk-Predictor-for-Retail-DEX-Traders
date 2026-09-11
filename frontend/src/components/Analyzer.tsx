@@ -37,11 +37,15 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
 
   useEffect(() => {
     if (!poolId && pools.length) {
-      // Open on a case where the trade-off is actually visible: a Solana
-      // memecoin pair at the 3% tolerance wallets routinely default to, sized
-      // so the optimum lands strictly inside the range rather than on a bound.
+      // Open on the real pool where sandwiches caught the most trades this week,
+      // at a size typical for it, so the first number anyone sees is measured.
+      // Without live data, fall back to a memecoin pair at the 3% tolerance
+      // wallets routinely default to.
+      const hottest = pools.find((p) => p.live)
+      if (hottest) setNotional(500)
       setPoolId(
-        pools.find((p) => p.pool_id === 'ray-bonk-sol')?.pool_id ??
+        hottest?.pool_id ??
+          pools.find((p) => p.pool_id === 'ray-bonk-sol')?.pool_id ??
           pools.find((p) => p.chain === 'solana')?.pool_id ??
           pools[0].pool_id,
       )
@@ -72,6 +76,8 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
   // return when real Ethereum data does; until then they could only show a
   // formula estimate.
   const solanaPools = useMemo(() => pools.filter((p) => p.chain === 'solana'), [pools])
+  const livePools = solanaPools.filter((p) => p.live && p.measured)
+  const referencePools = solanaPools.filter((p) => !p.live)
 
   return (
     <Section
@@ -93,9 +99,19 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
               <SelectValue placeholder="Select a pool" />
             </SelectTrigger>
             <SelectContent className="border-line bg-ground">
+              {livePools.length > 0 && (
+                <SelectGroup>
+                  <SelectLabel className="eyebrow">Real pools · most attacked this week</SelectLabel>
+                  {livePools.map((p) => (
+                    <SelectItem key={p.pool_id} value={p.pool_id} className="num text-xs">
+                      {p.symbol} · {pct(p.measured!.victim_rate, 0)} hit · {compactUsd(p.tvl_usd)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              )}
               <SelectGroup>
-                <SelectLabel className="eyebrow">Solana</SelectLabel>
-                {solanaPools.map((p) => (
+                <SelectLabel className="eyebrow">Reference pools</SelectLabel>
+                {referencePools.map((p) => (
                   <SelectItem key={p.pool_id} value={p.pool_id} className="num text-xs">
                     {p.symbol} · {compactUsd(p.tvl_usd)} · {p.fee_bps}bp
                   </SelectItem>
@@ -107,10 +123,18 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
           {pool && (
             <div className="mt-2 mb-5 flex flex-wrap gap-1.5">
               <Badge>{pool.venue}</Badge>
-              <Badge tone={pool.volatility_24h > 0.15 ? 'warn' : 'neutral'}>
-                σ {pct(pool.volatility_24h, 1)}/day
-              </Badge>
-              {pool.token_age_days < 30 && <Badge tone="hot">{pool.token_age_days}d old</Badge>}
+              {pool.measured ? (
+                <Badge tone="hot">
+                  {pool.measured.victims} of {pool.measured.swaps.toLocaleString()} trades sandwiched · 7d
+                </Badge>
+              ) : (
+                <>
+                  <Badge tone={pool.volatility_24h > 0.15 ? 'warn' : 'neutral'}>
+                    σ {pct(pool.volatility_24h, 1)}/day
+                  </Badge>
+                  {pool.token_age_days < 30 && <Badge tone="hot">{pool.token_age_days}d old</Badge>}
+                </>
+              )}
             </div>
           )}
 
@@ -492,13 +516,25 @@ function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string })
   )
 
   if (risk.source === 'live-mainnet' && live) {
+    const m = live.pool_measured
     return (
       <p className="mt-2 text-[0.625rem] leading-relaxed text-ink-faint">
-        <span className="text-cool">Measured on Solana mainnet:</span> bots reached{' '}
-        <span className="num">{pct(live.p_attack, 2)}</span> of trades like this, a minimum from{' '}
-        <span className="num">{live.positives.toLocaleString()}</span> real victims across{' '}
-        <span className="num">{live.victim_pools}</span> pools. The chance above also checks your slippage:
-        bots only attack when it pays. {liveLink}
+        {m ? (
+          <>
+            <span className="text-cool">Measured in this pool this week:</span>{' '}
+            <span className="num">{m.victims}</span> of <span className="num">{m.swaps.toLocaleString()}</span> trades
+            were caught in a sandwich. Adjusted for your trade size, bots reach{' '}
+            <span className="num">{pct(live.p_attack, 1)}</span> of trades like yours here.
+          </>
+        ) : (
+          <>
+            <span className="text-cool">Measured on Solana mainnet:</span> bots reached{' '}
+            <span className="num">{pct(live.p_attack, 2)}</span> of trades like this, a minimum from{' '}
+            <span className="num">{live.positives.toLocaleString()}</span> real victims across{' '}
+            <span className="num">{live.victim_pools}</span> pools.
+          </>
+        )}{' '}
+        The chance above also checks your slippage: bots only attack when it pays. {liveLink}
       </p>
     )
   }

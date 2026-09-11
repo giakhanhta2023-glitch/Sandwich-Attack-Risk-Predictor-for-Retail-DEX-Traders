@@ -269,6 +269,53 @@ def pool_risk_stats() -> list[dict[str, Any]]:
         return []
 
 
+def latest_sol_usd() -> float | None:
+    """SOL's price as the live scanner last measured it from on-chain swaps."""
+    client = read_client()
+    if client is None:
+        return None
+    try:
+        res = (
+            client.table("ingest_runs").select("sol_usd").filter("sol_usd", "not.is", "null")
+            .order("id", desc=True).limit(1).execute()
+        )
+        rows = res.data or []
+        return float(rows[0]["sol_usd"]) if rows else None
+    except Exception as exc:
+        logger.warning("ingest_runs unavailable: %s", exc)
+        return None
+
+
+def hottest_pools(min_swaps: int, min_victims: int, limit: int = 50) -> list[dict[str, Any]]:
+    """Real pools where sandwiches caught the largest share of trades this week."""
+    client = read_client()
+    if client is None:
+        return []
+    try:
+        res = (
+            client.table("live_pool_risk").select("*")
+            .gte("swaps", min_swaps).gte("victims", min_victims)
+            .order("victim_rate", desc=True).limit(limit).execute()
+        )
+        return res.data or []
+    except Exception as exc:
+        logger.warning("live_pool_risk unavailable: %s", exc)
+        return []
+
+
+def measured_pool(pool_key: str) -> dict[str, Any] | None:
+    """One pool's last seven days, as the live scanner measured them."""
+    client = read_client()
+    if client is None:
+        return None
+    try:
+        rows = client.table("live_pool_risk").select("*").eq("pool_key", pool_key).limit(1).execute().data or []
+        return rows[0] if rows else None
+    except Exception as exc:
+        logger.warning("live_pool_risk unavailable: %s", exc)
+        return None
+
+
 def severity_buckets() -> list[dict[str, Any]]:
     client = read_client()
     if client is None:
