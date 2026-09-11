@@ -44,6 +44,9 @@ PAGE = 1000
 # The model sets the Solana headline unattended, so a retrain must at least beat
 # a coin flip on data it has not seen, or the previous model stays in place.
 MIN_HOLDOUT_AUC = 0.5
+# An hour of the day counts as covered once the sample holds this many swaps
+# from it; serving holds time of day at the average for any other hour.
+MIN_ROWS_PER_HOUR = 20
 
 COLUMNS = "quote_usd,pool_depth_usd,side,hour_utc,quote_symbol,is_victim,sample_weight,created_at,pool_key"
 
@@ -86,10 +89,10 @@ def _weighted_moments(x: np.ndarray, w: np.ndarray) -> tuple[np.ndarray, np.ndar
 
 def train(verbose: bool = True) -> dict[str, Any]:
     raw = fetch_samples()
-    x_rows, y, w, stamps, pools = [], [], [], [], []
+    x_rows, y, w, stamps, pools, hours = [], [], [], [], [], []
     for r in raw:
-        f = featurize(float(r["quote_usd"]), float(r["pool_depth_usd"]), r["side"],
-                      r.get("hour_utc") or 0, r["quote_symbol"])
+        hour = int(r.get("hour_utc") or 0)
+        f = featurize(float(r["quote_usd"]), float(r["pool_depth_usd"]), r["side"], hour, r["quote_symbol"])
         if f is None:
             continue
         x_rows.append(f)
@@ -97,6 +100,7 @@ def train(verbose: bool = True) -> dict[str, Any]:
         w.append(float(r["sample_weight"]))
         stamps.append(r["created_at"])
         pools.append(r.get("pool_key"))
+        hours.append(hour)
 
     positives = int(sum(y))
     status = {
@@ -142,12 +146,16 @@ def train(verbose: bool = True) -> dict[str, Any]:
     model = LogisticRegression(C=1.0, max_iter=2000)
     model.fit((x - mean) / scale, y_arr, sample_weight=w_arr)
 
-    # How widely the attacks are spread. Bots work favourite pools in bursts, and
-    # a model learned mostly from one pool should not speak for every pool; the
-    # server reads these before letting the model set the headline.
+    # How widely the attacks are spread. Bots work favourite pools in bursts, so
+    # the server reports these next to every number the model produces.
     per_pool = Counter(pool for pool, label in zip(pools, y) if label)
     victim_pools = len(per_pool)
     top_pool_share = round(max(per_pool.values()) / positives, 4)
+
+    # Hours of the day the sample actually covers. A model trained on one evening
+    # must not extrapolate its time-of-day curve across the rest of the day, so
+    # serving holds time of day at the average for every hour not listed here.
+    hours_seen = sorted(h for h, n in Counter(hours).items() if n >= MIN_ROWS_PER_HOUR)
 
     weighted_swaps = float(w_arr.sum())
     artifact = {
@@ -163,6 +171,7 @@ def train(verbose: bool = True) -> dict[str, Any]:
         "positives": positives,
         "victim_pools": victim_pools,
         "top_pool_share": top_pool_share,
+        "hours_seen": hours_seen,
         "weighted_swaps": round(weighted_swaps),
         "base_rate": round(positives / weighted_swaps, 6) if weighted_swaps else 0.0,
         "window": {"start": stamps[0], "end": stamps[-1]},
@@ -189,11 +198,11 @@ def train(verbose: bool = True) -> dict[str, Any]:
     if verbose:
         print(f"trained on {len(x):,} real swaps ({positives} victims in {victim_pools} pools, "
               f"top pool {top_pool_share:.0%}; ~{weighted_swaps:,.0f} swaps weighted), "
-              f"window {stamps[0][:16]} -> {stamps[-1][:16]}")
+              f"window {stamps[0][:16]} -> {stamps[-1][:16]}, hours covered {hours_seen}")
         print("holdout:", metrics)
         print("coefficients:", dict(zip(FEATURES, artifact["coef"])))
     return {"trained": True, **status, "victim_pools": victim_pools,
-            "top_pool_share": top_pool_share, "metrics": metrics}
+            "top_pool_share": top_pool_share, "hours_seen": hours_seen, "metrics": metrics}
 
 
 if __name__ == "__main__":

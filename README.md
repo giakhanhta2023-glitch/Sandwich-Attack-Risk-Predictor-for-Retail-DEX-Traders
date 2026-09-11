@@ -132,7 +132,11 @@ seven observable features — trade size, pool depth, size relative to depth, di
 time of day, quote asset — scores it on a chronological holdout, and exports the
 coefficients as JSON. Serving is plain arithmetic, so it runs on Vercel without
 scikit-learn. A scheduled GitHub Action retrains every six hours and commits the new
-artifact once there is enough data (300 rows and 30 victims).
+artifact once there is enough data (300 rows and 30 victims). The model never
+extrapolates past its data: time of day counts only for hours the sample covers and is
+held at the average elsewhere, and every input is clipped at four standard deviations
+from real flow. (The first version skipped this, and a time-of-day curve fitted to one
+evening pushed afternoon risk a hundred times too low.)
 
 **Setting the number.** For Solana pools, whenever a mainnet-trained model exists it sets
 the headline probability, and the formula's figure is kept only for comparison. A young
@@ -322,7 +326,7 @@ frontend/
   src/lib/live.ts       read-only Supabase queries behind the /live dashboard
   src/lib/router.tsx    path routing for /live, /terms and /privacy
   src/lib/utils.ts      cn() class merger
-tests/                  73 tests over the invariants, detector, optimiser, live model and API
+tests/                  75 tests over the invariants, detector, optimiser, live model and API
 ```
 
 ## Tech stack

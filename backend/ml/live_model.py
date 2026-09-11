@@ -40,6 +40,13 @@ _GROUPS: list[tuple[str, str, tuple[str, ...]]] = [
     ("quote", "Quoted in SOL", ("quote_is_sol",)),
 ]
 
+HOUR_FEATURES = frozenset({"hour_sin", "hour_cos"})
+
+# A standardised input further than this from real flow is clipped: a linear
+# model extrapolates without limit, and nothing in the sample says what happens
+# out there.
+MAX_Z = 4.0
+
 
 def featurize(
     size_usd: float,
@@ -81,13 +88,26 @@ def load() -> dict[str, Any] | None:
     return model
 
 
+def _held(model: dict[str, Any], hour_utc: int) -> frozenset[str]:
+    """Inputs held at the average of real flow for this request.
+
+    Time of day only counts for hours the training sample actually covers. The
+    first live sample spanned one evening, and a sine curve fitted to those hours
+    and extended across the rest of the day pushed afternoon risk toward zero.
+    An artifact that does not record its hours gets no time effect at all.
+    """
+    seen = model.get("hours_seen") or []
+    return frozenset() if int(hour_utc) % 24 in seen else HOUR_FEATURES
+
+
 def _logit(model: dict[str, Any], x: list[float], at_mean: frozenset[str] = frozenset()) -> float:
     """Linear score. A feature named in `at_mean` is held at the population
-    mean, where a standardised feature contributes exactly zero."""
+    mean, where a standardised feature contributes exactly zero; every other
+    feature is clipped at MAX_Z standard deviations from real flow."""
     z = model["intercept"]
     for name, c, xi, mu, sd in zip(FEATURES, model["coef"], x, model["mean"], model["scale"]):
         if name not in at_mean:
-            z += c * (xi - mu) / (sd or 1.0)
+            z += c * max(-MAX_Z, min(MAX_Z, (xi - mu) / (sd or 1.0)))
     return z
 
 
@@ -108,7 +128,7 @@ def predict(
     x = featurize(size_usd, depth_usd, side, hour_utc, quote_symbol) if model else None
     if model is None or x is None:
         return None
-    return _sigmoid(_logit(model, x))
+    return _sigmoid(_logit(model, x, _held(model, hour_utc)))
 
 
 def explain(
@@ -129,7 +149,8 @@ def explain(
     x = featurize(size_usd, depth_usd, side, hour_utc, quote_symbol) if model else None
     if model is None or x is None:
         return []
-    p = _sigmoid(_logit(model, x))
+    held = _held(model, hour_utc)
+    p = _sigmoid(_logit(model, x, held))
     shown = {
         "trade_size": size_usd,
         "pool_depth": depth_usd,
@@ -140,7 +161,7 @@ def explain(
     }
     out = []
     for key, label, names in _GROUPS:
-        delta = p - _sigmoid(_logit(model, x, frozenset(names)))
+        delta = p - _sigmoid(_logit(model, x, held | frozenset(names)))
         if abs(delta) < 1e-6:
             continue
         out.append({
@@ -187,6 +208,7 @@ def info() -> dict[str, Any] | None:
         "positives": model.get("positives"),
         "victim_pools": model.get("victim_pools"),
         "top_pool_share": model.get("top_pool_share"),
+        "hours_seen": model.get("hours_seen"),
         "weighted_swaps": model.get("weighted_swaps"),
         "base_rate": model.get("base_rate"),
         "window": model.get("window"),
