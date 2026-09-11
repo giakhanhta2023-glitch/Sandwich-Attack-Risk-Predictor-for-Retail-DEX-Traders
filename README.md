@@ -117,12 +117,16 @@ full block is ~6MB and Solana produces ~2.5 a second, so no free tier can read e
 block: this is a rolling sample of the newest ones, roughly 5% of all blocks. Every run
 records exactly what it covered and why any block was missed, and `/live` shows it.
 
-**Labelling.** A sandwich is one wallet moving a pool vault one way and back by the same
-amount (±3%), another wallet trading the same way in between, both legs inside one
+**Labelling.** A sandwich is one attacker moving a pool vault one way and back by the
+same amount (±3%), another trader going the same way in between, both legs inside one
 validator's leader window (only a leader can order transactions across its own slots),
-and a profitable round trip valued from the pool's side. A window with a missing block
-could hide one leg of an attack, so its swaps are kept out of the training sample and
-the per-pool rates.
+and a profitable round trip valued from the pool's side. The two legs belong to one
+attacker when they share a fee payer or, for bots that rotate fee payers, when the
+position was bought into and sold out of the same token account. Pump.fun bonding
+curves hold their SOL as the curve account's lamports rather than in a token account,
+so their quote side is read from that balance. A window with a missing block could hide
+one leg of an attack, so its swaps are kept out of the training sample and the per-pool
+rates, and so are the attacker's own legs.
 
 **Sampling.** Every victim swap is kept; other swaps are kept at 2% with a weight of 50,
 so weighted statistics describe the real population rather than the sample.
@@ -155,6 +159,15 @@ A young model is labelled early, and the API lists what it still lacks against a
 established bar: 100 real victims spread over at least 20 pools, no pool supplying more
 than a third of them, and a holdout AUC of 0.6. Because the model goes live unattended, a
 retrain that cannot beat a coin flip on its holdout keeps the previous model.
+
+**Real pools.** The analyser leads with the real pools where the scanner caught the
+largest share of trades in sandwiches over the last seven days (at least 150 swaps and
+10 victims each), described by what it measured rather than by the registry's
+illustrative specs. For such a pool its own measured rate sets the level, shrunk toward
+the model by a prior worth 100 swaps, and the model only shifts it for the trade's size,
+in log-odds from the pool's average trade. A sandwich catches everyone trading the same
+way between the bot's two legs, so a pool a bot works hard can see most of its trades
+caught: at the time of writing the hottest had 113 of 217.
 
 **Helius.** Without a key the function uses the public mainnet RPC, which rate-limits
 and drops blocks. With one, every scan is complete. Set it as an Edge Function secret —
