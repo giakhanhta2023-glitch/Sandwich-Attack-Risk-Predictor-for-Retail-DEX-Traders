@@ -32,8 +32,8 @@ attacker's budget.
    one wallet on both legs, the back-run unwinding the front-run, a victim in between,
    all inside one validator's leader window, and a round trip that made money.
 3. **Predicts risk** for Solana pools with a model trained on real mainnet swaps and
-   retrained every six hours. Ethereum pools have no live feed yet, so they fall back to
-   the AMM economics, and the site labels which one produced each number.
+   retrained every six hours. Ethereum pools are hidden until a live Ethereum feed is
+   connected, because without one they could only show a formula estimate.
 4. **Solves for the sweet spot** — the slippage tolerance minimising expected cost —
    and for whether splitting the order into chunks beats executing it whole.
 
@@ -192,10 +192,9 @@ output and `api/index.py` as a Python function wrapping the FastAPI app.
 The deployed function does **not** carry scikit-learn. The full stack is ~370MB
 unpacked against a 250MB function limit, so the serving path was restructured to
 need none of it — feature medians and corpus aggregates are precomputed at
-training time into small JSON files. For Solana pools, sandwich probability in
-production comes from the mainnet model, which is served as plain arithmetic;
-Ethereum pools, which have no live data yet, use the closed-form economics. The
-site labels which one produced every number. Everything else — the AMM math, the sweet-spot
+training time into small JSON files. Sandwich probability in production comes
+from the mainnet model, which is served as plain arithmetic, so every pool the
+site offers is scored from real swaps. Everything else — the AMM math, the sweet-spot
 optimiser, the split ladder, the corpus — is identical to a local run.
 
 To run the trained model in production you need a host that fits a ~210MB

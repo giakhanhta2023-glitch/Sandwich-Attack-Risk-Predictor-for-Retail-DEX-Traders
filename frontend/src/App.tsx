@@ -133,7 +133,8 @@ function Header({ sources, path }: { sources: Methodology['sources'] | null; pat
         <div className="ml-auto flex items-center gap-2">
           <LiveIndicator summary={summary} />
           {sources &&
-            Object.entries(sources).map(([chain, s]) => {
+            // Ethereum is hidden until it has a live feed of its own.
+            Object.entries(sources).filter(([chain]) => chain !== 'ethereum').map(([chain, s]) => {
               // Solana data reaches the site through the live scanner, so its badge
               // reports the scanner's provider and health, not this server's settings.
               const shown =
@@ -214,7 +215,7 @@ function Hero() {
     <section id="top" className="relative z-10 mx-auto w-full max-w-[1600px] px-6 pt-8 pb-6">
       <div className="grid items-center gap-8 lg:grid-cols-[1fr_1fr]">
         <div>
-          <Badge tone="hot">MEV · Solana &amp; Ethereum</Badge>
+          <Badge tone="hot">MEV · Solana mainnet</Badge>
 
           <h1 className="mt-3 text-[1.75rem] leading-[1.08] font-semibold tracking-[-0.025em] md:text-[2.25rem]">
             Your slippage setting
@@ -326,7 +327,6 @@ function Footer() {
               <div className="eyebrow mb-2.5">Sources</div>
               <ul className="space-y-1.5 text-ink-faint">
                 <li>Solana mainnet — Helius / public RPC</li>
-                <li>Ethereum — AMM formula; BigQuery feed not connected</li>
               </ul>
             </div>
           </div>

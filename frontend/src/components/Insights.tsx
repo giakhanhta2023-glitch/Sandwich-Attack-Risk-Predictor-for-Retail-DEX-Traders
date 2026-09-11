@@ -15,7 +15,6 @@ import {
 import { api, usd, compactUsd, pct, bps } from '@/api'
 import type { CorpusStats, Methodology, ModelReport } from '@/api'
 import { Badge, Bar, LiveDot, Panel, Section, Skeleton, Stat } from './primitives'
-import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Link } from '@/lib/router'
@@ -366,8 +365,8 @@ export function ModelCard() {
           <p className="text-sm leading-relaxed text-ink">
             {live ? (
               <>
-                The simulator model below is kept for reference. Solana pools use the mainnet model above; Ethereum
-                pools, which have no live data yet, are scored with <strong>{serving.detail}</strong>.
+                The simulator model below is kept for reference only. Every pool on this site is scored by the
+                mainnet model above.
               </>
             ) : (
               <>
@@ -578,7 +577,6 @@ function ImportanceChart({ items }: { items: ModelReport['feature_importance'] }
 /** How the data gets in and how a sandwich is confirmed. */
 export function MethodologySection() {
   const [meth, setMeth] = useState<Methodology | null>(null)
-  const [openSql, setOpenSql] = useState<string | null>(null)
 
   useEffect(() => {
     api.methodology().then(setMeth).catch(() => {})
@@ -597,22 +595,41 @@ export function MethodologySection() {
       className="!py-8"
       eyebrow="Methodology"
       title="Where the numbers come from"
-      lede="Two ingestion paths, one detector, one optimiser. Every figure on this page is either measured from a swap stream or derived in closed form from the constant-product curve — nothing is a fudge factor except the two calibration constants named below."
+      lede="A live mainnet scanner, one detector, one optimiser. Every figure on this page is either measured from real Solana swaps or derived in closed form from the constant-product curve — nothing is a fudge factor except the two calibration constants named below."
     >
       <div className="grid gap-4 lg:grid-cols-3">
-        {Object.entries(meth.sources).map(([chain, s]) => (
-          <Panel key={chain} className="p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="eyebrow">{chain}</div>
-              <span className="flex items-center gap-2 text-[0.6875rem] text-ink-faint">
-                <LiveDot live={s.live} />
-                {s.live ? 'live' : 'not configured'}
-              </span>
-            </div>
-            <h3 className="mb-1.5 text-base font-semibold">{s.provider}</h3>
-            <p className="text-xs leading-relaxed text-ink-dim">{s.detail}</p>
-          </Panel>
-        ))}
+        {Object.entries(meth.sources)
+          // Solana arrives through the live scanner, described next; Ethereum is
+          // hidden until it has a live feed of its own.
+          .filter(([chain]) => chain !== 'solana' && chain !== 'ethereum')
+          .map(([chain, s]) => (
+            <Panel key={chain} className="p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="eyebrow">{chain}</div>
+                <span className="flex items-center gap-2 text-[0.6875rem] text-ink-faint">
+                  <LiveDot live={s.live} />
+                  {s.live ? 'live' : 'not configured'}
+                </span>
+              </div>
+              <h3 className="mb-1.5 text-base font-semibold">{s.provider}</h3>
+              <p className="text-xs leading-relaxed text-ink-dim">{s.detail}</p>
+            </Panel>
+          ))}
+
+        <Panel className="p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="eyebrow">solana</div>
+            <span className="text-[0.6875rem] text-ink-faint">every minute</span>
+          </div>
+          <h3 className="mb-1.5 text-base font-semibold">Mainnet scanner</h3>
+          <p className="text-xs leading-relaxed text-ink-dim">
+            Reads the newest Solana blocks every minute, finds every DEX swap and records each sandwich it
+            confirms.{' '}
+            <Link to="/live" className="text-ink underline underline-offset-2">
+              See it working
+            </Link>
+          </p>
+        </Panel>
 
         <Panel className="p-4">
           <div className="eyebrow mb-3">Detection</div>
@@ -641,33 +658,6 @@ export function MethodologySection() {
           <Formula label="Front-run capacity" body={meth.optimisation.frontrun_capacity} />
         </div>
         <p className="mt-3 text-xs leading-relaxed text-ink-dim">{meth.optimisation.note}</p>
-      </Panel>
-
-      <Panel className="mt-4 p-4">
-        <div className="eyebrow mb-1">Ethereum ingestion</div>
-        <h3 className="mb-4 text-base font-semibold">The BigQuery that labels the corpus</h3>
-        <div className="space-y-2">
-          {meth.bigquery_sql.map((q) => (
-            <div key={q.name} className="overflow-hidden rounded-sm border border-line">
-              <Button
-                variant="ghost"
-                onClick={() => setOpenSql(openSql === q.name ? null : q.name)}
-                className="flex h-auto w-full items-center justify-between gap-3 rounded-none px-4 py-3 text-left hover:bg-raised"
-              >
-                <span>
-                  <span className="num block text-xs text-ink">{q.name}</span>
-                  <span className="block text-[0.6875rem] font-normal text-ink-faint">{q.purpose}</span>
-                </span>
-                <span className="num shrink-0 text-ink-faint">{openSql === q.name ? '−' : '+'}</span>
-              </Button>
-              {openSql === q.name && (
-                <pre className="num overflow-x-auto border-t border-line bg-void px-4 py-3 text-[0.6875rem] leading-relaxed text-ink-dim">
-                  {q.sql}
-                </pre>
-              )}
-            </div>
-          ))}
-        </div>
       </Panel>
     </Section>
   )

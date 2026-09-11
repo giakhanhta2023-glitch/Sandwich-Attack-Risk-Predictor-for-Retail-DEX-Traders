@@ -203,16 +203,17 @@ def methodology() -> dict[str, Any]:
         "sources": settings.source_status(),
         "bigquery_sql": describe_queries(),
         "detection": {
-            "pattern": "front-run / victim / back-run within one block and pool",
+            "pattern": "front-run / victim / back-run in one pool, inside one validator's leader window",
             "criteria": [
-                "attacker address identical on the front-run and back-run legs",
-                "back-run unwinds the front-run position to within 2%",
-                "victim trades the same direction, between the two legs",
-                "the attacker's round trip is profitable",
+                "the same wallet signs the front-run and the back-run",
+                "the back-run unwinds the front-run to within 3%",
+                "another wallet trades the same direction in between",
+                "both legs land inside one leader window (at most 4 consecutive slots)",
+                "the attacker's round trip is profitable, valued from the pool's side",
             ],
             "loss_measurement": (
-                "the victim's output is recomputed against pre-attack reserves, so the "
-                "loss is measured rather than assumed"
+                "the victim lost at least what the attacker made, measured from the pool's own "
+                "token balances, so every reported loss is a floor"
             ),
         },
         "optimisation": {

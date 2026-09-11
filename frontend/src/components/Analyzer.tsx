@@ -40,7 +40,11 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
       // Open on a case where the trade-off is actually visible: a Solana
       // memecoin pair at the 3% tolerance wallets routinely default to, sized
       // so the optimum lands strictly inside the range rather than on a bound.
-      setPoolId(pools.find((p) => p.pool_id === 'ray-bonk-sol')?.pool_id ?? pools[0].pool_id)
+      setPoolId(
+        pools.find((p) => p.pool_id === 'ray-bonk-sol')?.pool_id ??
+          pools.find((p) => p.chain === 'solana')?.pool_id ??
+          pools[0].pool_id,
+      )
     }
   }, [pools, poolId])
 
@@ -64,13 +68,10 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
   }, [poolId, notional, slippage, privateRelay])
 
   const pool = useMemo(() => pools.find((p) => p.pool_id === poolId), [pools, poolId])
-  const grouped = useMemo(
-    () => ({
-      solana: pools.filter((p) => p.chain === 'solana'),
-      ethereum: pools.filter((p) => p.chain === 'ethereum'),
-    }),
-    [pools],
-  )
+  // Only Solana has a live feed and a model trained on real swaps. Ethereum pools
+  // return when real Ethereum data does; until then they could only show a
+  // formula estimate.
+  const solanaPools = useMemo(() => pools.filter((p) => p.chain === 'solana'), [pools])
 
   return (
     <Section
@@ -94,15 +95,7 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
             <SelectContent className="border-line bg-ground">
               <SelectGroup>
                 <SelectLabel className="eyebrow">Solana</SelectLabel>
-                {grouped.solana.map((p) => (
-                  <SelectItem key={p.pool_id} value={p.pool_id} className="num text-xs">
-                    {p.symbol} · {compactUsd(p.tvl_usd)} · {p.fee_bps}bp
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel className="eyebrow">Ethereum</SelectLabel>
-                {grouped.ethereum.map((p) => (
+                {solanaPools.map((p) => (
                   <SelectItem key={p.pool_id} value={p.pool_id} className="num text-xs">
                     {p.symbol} · {compactUsd(p.tvl_usd)} · {p.fee_bps}bp
                   </SelectItem>
