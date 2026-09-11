@@ -1,8 +1,9 @@
 """The model trained on real Solana mainnet flow.
 
 Covers the serving contract (features, artifact validation, attribution), the
-trainer-to-server hand-off, and the rule that the live model sets the Solana
-headline whenever it exists.
+trainer-to-server hand-off, and how the headline is built from it: how often
+bots reach trades like this (measured) times whether this one pays a bot at the
+user's tolerance (AMM arithmetic), with the risk label read from expected loss.
 """
 
 import json
@@ -75,10 +76,15 @@ def _pool_id(client, chain):
     return client.get("/api/pools", params={"chain": chain}).json()["pools"][0]["pool_id"]
 
 
-def _analyze(client, pool_id):
+def _thinnest_solana_pool(client):
+    pools = client.get("/api/pools", params={"chain": "solana"}).json()["pools"]
+    return min(pools, key=lambda p: p["tvl_usd"])["pool_id"]
+
+
+def _analyze(client, pool_id, notional=25_000, slippage_bps=100):
     res = client.post(
         "/api/analyze",
-        json={"pool_id": pool_id, "notional_usd": 25_000, "slippage_bps": 100, "hour_of_day": 14},
+        json={"pool_id": pool_id, "notional_usd": notional, "slippage_bps": slippage_bps, "hour_of_day": 14},
     )
     assert res.status_code == 200, res.text
     return res.json()
@@ -236,7 +242,7 @@ def test_a_feature_that_never_varied_cannot_swing_a_prediction(tmp_path, monkeyp
     assert live_model.predict(5_000, 50_000, "buy", 9, "SOL") == pytest.approx(at_training_hour, rel=1e-6)
 
 
-# --- who sets the headline -------------------------------------------------
+# --- how the headline is built ---------------------------------------------
 
 
 def test_an_established_live_model_sets_the_solana_headline(serve, client):
@@ -245,7 +251,9 @@ def test_an_established_live_model_sets_the_solana_headline(serve, client):
     risk, live = body["risk"], body["risk"]["live_market"]
 
     assert risk["source"] == "live-mainnet"
-    assert risk["p_attack"] == pytest.approx(live["p_attack"])
+    # how often bots reach trades like this, times whether this one pays at the tolerance
+    assert risk["searcher_presence"] == pytest.approx(live["p_attack"], abs=1e-4)
+    assert risk["p_attack"] == pytest.approx(live["p_attack"] * risk["p_worth_attacking"], abs=2e-6)
     assert live["early"] is False and live["caveats"] == []
     assert "simulated_p_attack" in risk
     # the explanation describes the number shown, not the formula's
@@ -271,9 +279,38 @@ def test_an_early_live_model_still_sets_the_headline_and_says_what_it_lacks(serv
     risk, live = body["risk"], body["risk"]["live_market"]
 
     assert risk["source"] == "live-mainnet"
-    assert risk["p_attack"] == pytest.approx(live["p_attack"])
+    assert risk["p_attack"] == pytest.approx(live["p_attack"] * risk["p_worth_attacking"], abs=2e-6)
     assert live["early"] is True
     assert any(shortfall in c for c in live["caveats"])
+
+
+def test_your_slippage_moves_the_chance(serve, client):
+    """A tolerance too tight to pay a bot takes the chance to zero; a wide one does not."""
+    serve(_artifact())
+    tight = _analyze(client, "ray-bonk-sol", 8_000, 5)["risk"]
+    wide = _analyze(client, "ray-bonk-sol", 8_000, 300)["risk"]
+
+    assert tight["p_worth_attacking"] == 0 and tight["p_attack"] == 0
+    assert wide["p_worth_attacking"] > 0.95
+    assert wide["p_attack"] == pytest.approx(wide["live_market"]["p_attack"], rel=0.05)
+
+
+def test_the_label_follows_the_money_not_just_the_chance(serve, client):
+    """A trade that pays a bot thousands is severe even if bots reach few such trades."""
+    serve(_artifact())
+    juicy = _analyze(client, _thinnest_solana_pool(client), 100_000, 500)
+    assert juicy["economics"]["attack_is_profitable"]
+    assert juicy["risk"]["risk_band"] in {"high", "severe"}
+    assert juicy["risk"]["expected_loss_bps"] == pytest.approx(
+        juicy["risk"]["p_attack"] * juicy["risk"]["expected_loss_bps_if_attacked"], rel=1e-3)
+
+    assert _analyze(client, "ray-bonk-sol", 8_000, 5)["risk"]["risk_band"] == "minimal"
+
+
+def test_loss_bands():
+    from backend.app.main import loss_band
+
+    assert [loss_band(b) for b in (0.1, 1, 5, 20, 80)] == ["minimal", "low", "elevated", "high", "severe"]
 
 
 def test_the_solana_model_never_scores_ethereum(serve, client):

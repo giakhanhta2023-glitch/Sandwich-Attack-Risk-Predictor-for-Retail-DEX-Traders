@@ -121,8 +121,12 @@ export interface Analysis {
     source: string
     searcher_presence: number
     p_revert: number
-    /** The simulator's figure, kept when the mainnet model sets the headline. */
+    /** The formula's own figure, kept for comparison when the mainnet model sets the headline. */
     simulated_p_attack?: number
+    /** Whether a bot that reaches this trade finds it worth attacking at the current tolerance, 0-1. */
+    p_worth_attacking?: number
+    /** Expected sandwich loss in basis points of the trade; the risk band is read from this. */
+    expected_loss_bps?: number
     live_market?: LiveMarket | null
   }
   economics: {

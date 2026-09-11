@@ -96,32 +96,39 @@ class TradeContext:
 # the two competing risks
 # --------------------------------------------------------------------------
 
-def attack_probability(ctx: TradeContext, s: float, a_unc: float | None = None) -> float:
-    """P(this swap gets sandwiched at tolerance `s`).
+def take_rate(ctx: TradeContext, s: float, a_unc: float | None = None) -> float:
+    """P(a searcher who reaches this swap finds it worth attacking at tolerance `s`).
 
-    Two gates in series. A searcher must (a) see the intent at all, and (b) find
-    it worth more than the bundle bid. The second gate is a logistic on profit
-    rather than a hard step, because competing searchers, tip auctions and
-    inventory limits blur the break-even point in practice.
+    Zero when the best sandwich the tolerance allows would lose money: nobody
+    runs a bundle they expect to lose on. Above break-even it rises smoothly to
+    one, and the width stands for uncertainty in *our* estimate of the
+    searcher's costs -- tip auctions, competing searchers, inventory limits --
+    not for searcher irrationality. (A logistic centred on break-even put a swap
+    with no room for any front-run at a 50% take rate.)
     """
-    if ctx.private_relay:
-        # private orderflow removes the public mempool observation; residual
-        # risk is builder/validator-side leakage, not zero
-        return 0.02 * ctx.bot_activity
-
     r_in, r_out = ctx.reserves
     outcome = optimal_sandwich(
         ctx.size_in, r_in, r_out, s, ctx.price_in_usd, ctx.attack_cost_usd, ctx.gamma,
         a_unconstrained=a_unc,
     )
     profit = outcome.attacker_profit_usd
-    # The logistic width represents uncertainty in *our* estimate of the
-    # searcher's cost, not searcher irrationality -- nobody runs a bundle they
-    # expect to lose on. A narrow width therefore makes the break-even point
-    # behave like the near-step function it is in reality.
+    if profit <= 0.0:
+        return 0.0
     scale = max(ctx.attack_cost_usd, 1.0) * 0.25
-    take_rate = 1.0 / (1.0 + math.exp(-max(-60.0, min(60.0, profit / scale))))
-    return max(0.0, min(1.0, ctx.bot_activity * take_rate))
+    return math.tanh(min(60.0, profit / (2.0 * scale)))
+
+
+def attack_probability(ctx: TradeContext, s: float, a_unc: float | None = None) -> float:
+    """P(this swap gets sandwiched at tolerance `s`).
+
+    Two gates in series: a searcher must (a) reach the intent at all, and (b)
+    find it worth more than the bundle bid.
+    """
+    if ctx.private_relay:
+        # private orderflow removes the public mempool observation; residual
+        # risk is builder/validator-side leakage, not zero
+        return 0.02 * ctx.bot_activity
+    return max(0.0, min(1.0, ctx.bot_activity * take_rate(ctx, s, a_unc)))
 
 
 def revert_probability(ctx: TradeContext, s: float) -> float:

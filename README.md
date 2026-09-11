@@ -137,16 +137,24 @@ extrapolates past its data: time of day is held at the average until the sample 
 the whole day, and every input is clipped at four standard deviations from real flow. (The first version skipped this, and a time-of-day curve fitted to one
 evening pushed afternoon risk a hundred times too low.)
 
-**Setting the number.** For Solana pools, whenever a mainnet-trained model exists it sets
-the headline probability, and the formula's figure is kept only for comparison. A young
-model is labelled early, and the API lists what it still lacks against an established
-bar: 100 real victims spread over at least 20 pools, no pool supplying more than a third
-of them, and a holdout AUC of 0.6. The spread matters because bots work favourite pools
-in bursts; in the first hour one memecoin pool supplied 41% of all victims. And because
-the model now goes live unattended, a retrain that cannot beat a coin flip on its holdout
-keeps the previous model.
-Slippage tolerance is invisible on-chain, so the model estimates risk at the tolerances
-real traders actually use; the closed-form economics carry that across the slippage sweep.
+**Setting the number.** Two questions decide whether a trade gets sandwiched, and they
+are answered separately. *How often do bots reach trades like this?* is measured on
+mainnet by the live model. *Is this trade worth attacking at your tolerance?* is exact
+AMM arithmetic, and it is the one thing chain data cannot show, because a trader's
+tolerance never appears in balance changes. The chance shown is their product: a
+tolerance too tight to pay takes it to zero, and a wide one on a big trade keeps it at
+the reach rate. A bot takes an attack only when it pays; the take rate is zero at or
+below break-even and rises smoothly above it.
+
+The risk label is the expected loss as a share of the trade, that chance times what a
+bot takes when it attacks: under 0.5bp minimal, under 3bp low, under 10bp elevated,
+under 30bp high, above that severe. Labelling by the chance alone called a 4% chance of
+losing over a tenth of a $100k trade "low".
+
+A young model is labelled early, and the API lists what it still lacks against an
+established bar: 100 real victims spread over at least 20 pools, no pool supplying more
+than a third of them, and a holdout AUC of 0.6. Because the model goes live unattended, a
+retrain that cannot beat a coin flip on its holdout keeps the previous model.
 
 **Helius.** Without a key the function uses the public mainnet RPC, which rate-limits
 and drops blocks. With one, every scan is complete. Set it as an Edge Function secret —

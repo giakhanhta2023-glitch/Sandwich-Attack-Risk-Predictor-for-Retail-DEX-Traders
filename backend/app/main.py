@@ -30,6 +30,8 @@ from ..core.amm import (
 )
 from ..core.optimizer import (
     TradeContext,
+    attack_probability,
+    take_rate,
     find_sweet_spot,
     optimal_split,
     evaluate_split,
@@ -41,7 +43,7 @@ from ..db import repository as repo
 from ..db.client import DatabaseUnavailable, db_status
 from ..ingestion.bigquery_eth import describe_queries
 from ..ml import live_model
-from ..ml.predictor import get_predictor, risk_band
+from ..ml.predictor import get_predictor
 from .config import settings
 
 app = FastAPI(
@@ -94,12 +96,7 @@ def calibrate_bot_activity(ctx: TradeContext, s: float, p_ml: float) -> float:
     if ctx.private_relay:
         return min(1.0, max(0.0, p_ml / 0.02)) if p_ml > 0 else 0.0
 
-    r_in, r_out = ctx.reserves
-    outcome = optimal_sandwich(
-        ctx.size_in, r_in, r_out, s, ctx.price_in_usd, ctx.attack_cost_usd, ctx.gamma
-    )
-    scale = max(ctx.attack_cost_usd, 1.0) * 0.25
-    take = 1.0 / (1.0 + math.exp(-max(-60.0, min(60.0, outcome.attacker_profit_usd / scale))))
+    take = take_rate(ctx, s)
     if take < 1e-6:
         # nothing to invert: the trade is unprofitable at this tolerance, so the
         # model's probability carries no information about presence
@@ -239,6 +236,17 @@ LIVE_MIN_AUC = 0.6
 LIVE_MIN_VICTIM_POOLS = 20
 LIVE_MAX_TOP_POOL_SHARE = 1 / 3
 
+# Risk is what a trader should expect to lose to sandwiches, as a share of the
+# trade: the chance a bot reaches it and finds it worth attacking, times what it
+# takes when it does. Labelling by the chance alone called a 4% chance of losing
+# over a tenth of a $100k trade "low".
+_LOSS_BANDS = ((0.5, "minimal"), (3.0, "low"), (10.0, "elevated"), (30.0, "high"))
+
+
+def loss_band(expected_loss_bps: float) -> str:
+    """Risk label from the expected sandwich loss, in basis points of the trade."""
+    return next((band for cap, band in _LOSS_BANDS if expected_loss_bps < cap), "severe")
+
 
 def _pool_quote(pool: dict[str, Any]) -> str:
     """Quote asset from a registry symbol: 'BONK/SOL' -> SOL, 'SOL/USDC Whirlpool' -> USDC."""
@@ -246,13 +254,13 @@ def _pool_quote(pool: dict[str, Any]) -> str:
 
 
 def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) -> dict[str, Any] | None:
-    """What real Solana mainnet flow says about a trade like this one.
+    """How often bots reach trades like this one on Solana mainnet.
 
     The live model sees size, pool depth, direction, hour and quote asset -- all
-    observable on-chain -- but not the victim's slippage tolerance, which never
-    appears in balance changes. It estimates the risk for trades like this at the
-    tolerances real traders actually use; the closed-form economics then carry
-    that level across the slippage sweep.
+    observable on-chain -- but not the trader's slippage tolerance, which never
+    appears in balance changes. So it answers only how often bots reach trades
+    like this; whether a given trade is worth attacking at the user's tolerance
+    is left to the AMM arithmetic in `analyze`.
     """
     if pool["chain"] != "solana":
         return None
@@ -329,41 +337,50 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
         pool_attack_rate_prior=predictor.pool_prior(req.pool_id),
     )
 
-    # --- 1b. real mainnet flow ------------------------------------------
-    # Whenever a model trained on live Solana data exists, it sets the
-    # probability. The formula's figure is kept alongside for comparison, and the
-    # explanation switches to the live model so it describes the number shown.
+    # --- 1b. who reaches the trade, and whether it pays ------------------
+    # Two questions decide whether a trade gets sandwiched, answered separately.
+    # How often bots reach trades like this is measured on mainnet by the live
+    # model. Whether this one is worth attacking at the user's tolerance is exact
+    # AMM arithmetic -- the one thing chain data cannot show, because a trader's
+    # tolerance never appears in balance changes. The chance shown is their
+    # product: a tolerance too tight to pay takes it to zero, and a wide one on a
+    # big trade keeps it at the reach rate.
+    current_s = req.slippage_bps / 10_000.0
     live_market = _live_market_estimate(pool, req, hour)
     if live_market:
-        p_real = live_market["p_attack"]
-        ml = {
-            **ml,
-            "simulated_p_attack": ml["p_attack"],
-            "p_attack": p_real,
-            "risk_band": risk_band(p_real),
-            "expected_loss_usd": round(
-                p_real * (ml["expected_loss_bps_if_attacked"] / 10_000.0) * req.notional_usd, 4
-            ),
-            "drivers": live_model.explain(
-                req.notional_usd, pool["tvl_usd"] / 2.0, "buy", hour, _pool_quote(pool)
-            ),
-            "model": "logistic regression on real Solana mainnet swaps",
-            "source": "live-mainnet",
-        }
+        ctx.bot_activity = live_market["p_attack"]
+    else:
+        # hold the formula's searcher presence fixed across the sweep
+        ctx.bot_activity = calibrate_bot_activity(ctx, current_s, ml["p_attack"])
 
-    # --- 2. fuse: hold the model's searcher presence fixed across the sweep
-    ctx.bot_activity = calibrate_bot_activity(ctx, req.slippage_bps / 10_000.0, ml["p_attack"])
-
-    # --- 3. economics at the current setting ----------------------------
+    # --- 2. economics at the current setting ----------------------------
     r_in, r_out = ctx.reserves
     a_unc = unconstrained_frontrun(ctx.size_in, r_in, r_out, ctx.gamma)
-    current_s = req.slippage_bps / 10_000.0
     current_outcome = optimal_sandwich(
         ctx.size_in, r_in, r_out, current_s, ctx.price_in_usd, ctx.attack_cost_usd,
         ctx.gamma, a_unconstrained=a_unc,
     )
+    p_now = attack_probability(ctx, current_s, a_unc)
+    worth = p_now / ctx.bot_activity if ctx.bot_activity > 0 else 0.0
 
-    # --- 4. sweet spot and splitting ------------------------------------
+    if live_market:
+        ml = {
+            **ml,
+            "simulated_p_attack": ml["p_attack"],
+            "p_attack": round(p_now, 6),
+            "expected_loss_bps_if_attacked": round(current_outcome.victim_loss_bps, 2),
+            "drivers": live_model.explain(
+                req.notional_usd, pool["tvl_usd"] / 2.0, "buy", hour, _pool_quote(pool)
+            ),
+            "model": "mainnet reach rate x AMM profitability at your tolerance",
+            "source": "live-mainnet",
+        }
+    expected_bps = ml["p_attack"] * ml["expected_loss_bps_if_attacked"]
+    ml["expected_loss_bps"] = round(expected_bps, 3)
+    ml["expected_loss_usd"] = round(expected_bps / 10_000.0 * req.notional_usd, 4)
+    ml["risk_band"] = loss_band(expected_bps)
+
+    # --- 3. sweet spot and splitting ------------------------------------
     spot = find_sweet_spot(ctx, default_slippage_bps=req.slippage_bps)
     best_split, split_plans = optimal_split(ctx, max_chunks=req.max_chunks)
     single = evaluate_split(ctx, 1)
@@ -411,6 +428,7 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
         "risk": {
             **ml,
             "searcher_presence": round(ctx.bot_activity, 4),
+            "p_worth_attacking": round(worth, 6),
             "p_revert": round(revert_probability(ctx, current_s), 4),
             "live_market": live_market,
         },

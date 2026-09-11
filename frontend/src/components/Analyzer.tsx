@@ -438,8 +438,8 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
           <div className={`eyebrow mt-1.5 risk-${band}`}>{band} risk</div>
           <p className="mt-2.5 text-[0.6875rem] leading-relaxed text-ink-dim">
             {economics.attack_is_profitable
-              ? `A searcher nets ${usd(economics.attacker_profit_usd)} from this trade at your current tolerance.`
-              : 'A sandwich on this trade loses a searcher money, so the attack is not worth running.'}
+              ? `If a bot reaches this trade it attacks: it nets ${usd(economics.attacker_profit_usd)} at your tolerance, and you lose ${usd(economics.victim_loss_usd)}.`
+              : 'At this tolerance a sandwich would lose the bot money, so bots skip it.'}
           </p>
           <ModelSource risk={risk} chain={result.input.pool.chain} />
         </div>
@@ -494,11 +494,11 @@ function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string })
   if (risk.source === 'live-mainnet' && live) {
     return (
       <p className="mt-2 text-[0.625rem] leading-relaxed text-ink-faint">
-        <span className="text-cool">Learned from Solana mainnet:</span>{' '}
+        <span className="text-cool">Measured on Solana mainnet:</span> bots reached{' '}
+        <span className="num">{pct(live.p_attack, 2)}</span> of trades like this, a minimum from{' '}
         <span className="num">{live.positives.toLocaleString()}</span> real victims across{' '}
-        <span className="num">{live.victim_pools}</span> pools, in ~
-        <span className="num">{live.weighted_swaps.toLocaleString()}</span> swaps.
-        {live.early && ' Early model, retrained every 6 hours as data grows.'} {liveLink}
+        <span className="num">{live.victim_pools}</span> pools. The chance above also checks your slippage:
+        bots only attack when it pays. {liveLink}
       </p>
     )
   }
@@ -626,7 +626,7 @@ function Drivers({ result }: { result: Analysis }) {
       <h3 className="mb-1 text-base font-semibold">Why this score</h3>
       <p className="mb-4 text-xs text-ink-faint">
         {result.risk.source === 'live-mainnet'
-          ? 'Each bar is the change in probability when that input is reset to the average of real mainnet swaps.'
+          ? 'Each bar shows how that input moves the share of trades like this that bots reach, against the average of real mainnet swaps.'
           : 'Each bar is the change in predicted probability when that input is reset to its corpus median.'}
       </p>
 
