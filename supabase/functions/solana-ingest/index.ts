@@ -4,8 +4,8 @@
 //   1. scans the two most recent complete leader windows (8 slots) on mainnet;
 //   2. reads every DEX transaction from the pools' side -- token vaults whose
 //      balances moved -- which works across AMMs, routers and bot contracts;
-//   3. flags a sandwich when one wallet moves a vault one way and then back by
-//      the same amount (+/-3%), another wallet trades the same way in between,
+//   3. flags a sandwich when one attacker moves a vault one way and then back
+//      by the same amount (+/-3%), another trader goes the same way in between,
 //      both legs land inside one validator's leader window, and the round trip
 //      made money;
 //   4. records the run, the detections, per-pool counts and a training sample.
@@ -36,6 +36,7 @@ const MIN_SECONDS_BETWEEN_RUNS = 40; // bounds what anyone calling the public UR
 const NEGATIVE_SAMPLE_RATE = 0.02;   // share of non-victim swaps kept for training
 const AMOUNT_MATCH = 0.03;           // back-run must unwind the front-run to within 3%
 const MAX_LEADER_SPAN = SLOTS_PER_WINDOW - 1;
+const MIN_CURVE_LAMPORTS = 10_000n;  // smallest SOL move read as a bonding-curve trade
 // The public RPC rate-limits by IP over a window of several seconds, so a short
 // backoff only hits the same wall again: it gets one request at a time and waits
 // long enough for that window to roll over. Every wait is bounded by the run
@@ -45,6 +46,7 @@ const BLOCK_TRIES = HELIUS_KEY ? 4 : 5;
 const BACKOFF_MS = HELIUS_KEY ? 500 : 1000;
 const RUN_BUDGET_MS = 40_000;
 
+const PUMP_BONDING_CURVE = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 const DEX_PROGRAMS = new Set([
   "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", // Raydium AMM v4
   "CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK", // Raydium CLMM
@@ -52,7 +54,7 @@ const DEX_PROGRAMS = new Set([
   "whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc",  // Orca Whirlpool
   "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",  // Meteora DLMM
   "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",  // Pump.fun AMM
-  "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",  // Pump.fun bonding curve
+  PUMP_BONDING_CURVE,                               // Pump.fun bonding curve
   "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",  // Jupiter aggregator
 ]);
 const WSOL = "So11111111111111111111111111111111111111112";
@@ -73,11 +75,16 @@ type Flow = {
 type PoolSwap = {
   slot: number; tx: number; sig: string; poolKey: string;
   base: Flow; quote: Flow | null; blockTime: number | null;
+  // The trader's end of the base-token flow: the account the bought tokens
+  // landed in, or the sold ones left. A bot that rotates fee payers still buys
+  // into and sells out of the same token account.
+  trader: string | null; traderOwner: string | null;
 };
+type Moved = { account: string; owner: string; mint: string; dec: number; d: bigint; pre: bigint };
 
 const abs = (x: bigint) => (x < 0n ? -x : x);
 const ui = (raw: bigint, dec: number) => Number(raw) / 10 ** dec;
-const up = (f: Flow) => f.d > 0n;
+const up = (f: { d: bigint }) => f.d > 0n;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function push<K, V>(m: Map<K, V[]>, k: K, v: V) {
@@ -147,36 +154,56 @@ function extract(
     const signers = new Set(keys.slice(0, msg.header.numRequiredSignatures));
     const signer = keys[0];
     const sig: string = tx.transaction.signatures[0];
+    const onBondingCurve = keys.includes(PUMP_BONDING_CURVE);
     const pre = new Map<number, any>();
     for (const b of meta.preTokenBalances ?? []) pre.set(b.accountIndex, b);
     const post = new Map<number, any>();
     for (const b of meta.postTokenBalances ?? []) post.set(b.accountIndex, b);
 
-    // Token accounts not owned by any signer are the pool side of the trade.
-    const byOwner = new Map<string, Flow[]>();
+    // Every token account whose balance moved, on both sides of the trade.
+    const moved: Moved[] = [];
     for (const ai of new Set([...pre.keys(), ...post.keys()])) {
       const b = post.get(ai) ?? pre.get(ai);
-      const owner: string | undefined = b.owner;
-      if (!owner || signers.has(owner)) continue;
       const pa = BigInt(pre.get(ai)?.uiTokenAmount?.amount ?? "0");
       const qa = BigInt(post.get(ai)?.uiTokenAmount?.amount ?? "0");
-      if (pa === qa) continue;
-      const f: Flow = {
-        slot, tx: idx, sig, signer, vault: keys[ai], mint: b.mint,
-        dec: b.uiTokenAmount?.decimals ?? 0, d: qa - pa, pre: pa,
-      };
+      if (pa === qa || !b.owner) continue;
+      moved.push({ account: keys[ai], owner: b.owner, mint: b.mint, dec: b.uiTokenAmount?.decimals ?? 0, d: qa - pa, pre: pa });
+    }
+
+    // Token accounts not owned by any signer are the pool side of the trade.
+    const byOwner = new Map<string, Flow[]>();
+    for (const m of moved) {
+      if (signers.has(m.owner)) continue;
+      const f: Flow = { slot, tx: idx, sig, signer, vault: m.account, mint: m.mint, dec: m.dec, d: m.d, pre: m.pre };
       push(flowsByVault, f.vault, f);
-      push(byOwner, owner, f);
+      push(byOwner, m.owner, f);
     }
 
     // One owner whose vaults moved in exactly two mints, opposite ways, is one
     // pool swap. Fee accounts can share an owner with the vaults, so keep the
     // largest mover per mint.
-    for (const group of byOwner.values()) {
+    for (const [owner, group] of byOwner) {
       const perMint = new Map<string, Flow>();
       for (const f of group) {
         const cur = perMint.get(f.mint);
         if (!cur || abs(f.d) > abs(cur.d)) perMint.set(f.mint, f);
+      }
+      // A pump.fun bonding curve holds its SOL as the curve account's own
+      // lamports rather than in a token account, so its quote side is read
+      // from the curve's lamport balance. Without this every bonding-curve
+      // trade -- where memecoin launches are fought over -- went unseen.
+      if (perMint.size === 1 && onBondingCurve) {
+        const [only] = perMint.values();
+        const i = keys.indexOf(owner);
+        if (i >= 0 && meta.preBalances?.[i] != null && meta.postBalances?.[i] != null) {
+          const before = BigInt(meta.preBalances[i]);
+          const lamports = BigInt(meta.postBalances[i]) - before;
+          if (abs(lamports) >= MIN_CURVE_LAMPORTS && (lamports > 0n) !== up(only)) {
+            const sol: Flow = { slot, tx: idx, sig, signer, vault: owner, mint: WSOL, dec: 9, d: lamports, pre: before };
+            push(flowsByVault, sol.vault, sol);
+            perMint.set(WSOL, sol);
+          }
+        }
       }
       if (perMint.size !== 2) continue;
       const [a, b] = [...perMint.values()];
@@ -184,7 +211,16 @@ function extract(
       const poolKey = [a.vault, b.vault].sort().join(":");
       const quote = QUOTE_SYMBOL[a.mint] ? a : QUOTE_SYMBOL[b.mint] ? b : null;
       const base = quote === a ? b : a;
-      const s: PoolSwap = { slot, tx: idx, sig, poolKey, base, quote, blockTime };
+
+      let trader: string | null = null;
+      let traderOwner: string | null = null;
+      let largest = 0n;
+      for (const m of moved) {
+        if (m.mint !== base.mint || m.account === base.vault || up(m) === up(base)) continue;
+        if (abs(m.d) > largest) { largest = abs(m.d); trader = m.account; traderOwner = m.owner; }
+      }
+
+      const s: PoolSwap = { slot, tx: idx, sig, poolKey, base, quote, blockTime, trader, traderOwner };
       swaps.push(s);
       push(swapsByTx, `${slot}:${idx}`, s);
     }
@@ -199,6 +235,7 @@ type Detection = {
   swap: PoolSwap; back: PoolSwap; front: Flow; backFlow: Flow; victims: Flow[];
   tier: "high" | "medium"; span: number; leader: string | null;
   profitQuote: number; victimQuoteIn: number; ratio: number;
+  link: "signer" | "account";
 };
 
 function detect(
@@ -212,14 +249,29 @@ function detect(
     fl.sort((x, y) => x.slot - y.slot || x.tx - y.tx);
     for (let a = 0; a < fl.length; a++) {
       const fi = fl[a];
+      const frontSwap = swapFor(fi, swapsByTx);
       for (let k = a + 1; k < Math.min(fl.length, a + 60); k++) {
         const fk = fl[k];
-        if (fk.signer !== fi.signer || up(fk) === up(fi)) continue;
+        if (up(fk) === up(fi)) continue;
+
+        // The two legs belong to one attacker when they share a fee payer, or
+        // -- for bots that rotate fee payers between legs -- when the position
+        // was bought into and sold out of the same token account.
+        const backSwap = swapFor(fk, swapsByTx);
+        const bySigner = fk.signer === fi.signer;
+        const byAccount = !bySigner && !!frontSwap?.trader && frontSwap.trader === backSwap?.trader;
+        if (!bySigner && !byAccount) continue;
 
         const ratio = Number(abs(fk.d)) / Number(abs(fi.d));
         if (ratio < 1 - AMOUNT_MATCH || ratio > 1 + AMOUNT_MATCH) break;
 
-        const victims = fl.slice(a + 1, k).filter((m) => m.signer !== fi.signer && up(m) === up(fi));
+        // A victim is another trader going the same way in between: neither of
+        // the attacker's fee payers, and not the attacker's own token account.
+        const victims = fl.slice(a + 1, k).filter((m) => {
+          if (m.signer === fi.signer || m.signer === fk.signer || up(m) !== up(fi)) return false;
+          const ms = swapFor(m, swapsByTx);
+          return !(frontSwap?.trader && ms?.trader === frontSwap.trader);
+        });
         if (!victims.length) break;
 
         // Only a leader can order transactions across its own slots, so a
@@ -229,8 +281,8 @@ function detect(
         if (span > MAX_LEADER_SPAN) break;
         if (span > 0 && (!leader || leader !== leaderOf(fk.slot))) break;
 
-        const front = swapFor(fi, swapsByTx);
-        const back = swapFor(fk, swapsByTx);
+        const front = frontSwap;
+        const back = backSwap;
         if (!front || !back || front.poolKey !== back.poolKey || !front.quote || !back.quote) break;
 
         // Value the round trip from the pool's side: the attacker's net is the
@@ -253,7 +305,7 @@ function detect(
         out.push({
           swap: front, back, front: fi, backFlow: fk, victims,
           tier: span === 0 ? "high" : "medium", span, leader,
-          profitQuote, victimQuoteIn, ratio,
+          profitQuote, victimQuoteIn, ratio, link: bySigner ? "signer" : "account",
         });
         break;
       }
@@ -357,7 +409,9 @@ Deno.serve(async () => {
         slot_back: f.backFlow.slot,
         slot_span: f.span,
         leader: f.leader,
-        attacker: f.front.signer,
+        // for a bot rotating fee payers, its identity is the shared position account's owner
+        attacker: f.link === "signer" ? f.front.signer : (f.swap.traderOwner ?? f.swap.trader ?? f.front.signer),
+        link: f.link,
         frontrun_tx: f.front.sig,
         backrun_tx: f.backFlow.sig,
         victim_tx: f.victims[0].sig,
@@ -368,7 +422,8 @@ Deno.serve(async () => {
         attacker_profit_usd: toUsd(symbol, f.profitQuote),
         victim_quote_in: f.victimQuoteIn || null,
         victim_loss_bps_lb: f.victimQuoteIn > 0 ? (f.profitQuote / f.victimQuoteIn) * 10_000 : null,
-        confidence: Math.min(0.95, (f.tier === "high" ? 0.9 : 0.7) + (Math.abs(1 - f.ratio) < 0.005 ? 0.05 : 0)),
+        confidence: Math.min(0.95,
+          (f.tier === "high" ? 0.9 : 0.7) + (Math.abs(1 - f.ratio) < 0.005 ? 0.05 : 0) - (f.link === "account" ? 0.05 : 0)),
         block_time: bt ? new Date(bt * 1000).toISOString() : null,
       };
     });
@@ -376,12 +431,21 @@ Deno.serve(async () => {
     // victims, keyed the way samples are keyed
     const victimKeys = new Set<string>();
     for (const f of found) for (const v of f.victims) victimKeys.add(`${v.sig}|${f.swap.poolKey}`);
+    // The attacker's own legs are not trades that could have been sandwiched,
+    // so they stay out of the per-pool counts and the training sample. Counted
+    // as clean swaps, every attack also diluted the rate it was part of.
+    const legKeys = new Set<string>();
+    for (const f of found) {
+      legKeys.add(`${f.front.sig}|${f.swap.poolKey}`);
+      legKeys.add(`${f.backFlow.sig}|${f.swap.poolKey}`);
+    }
+    const counted = (s: PoolSwap) => complete(s.slot) && !legKeys.has(`${s.sig}|${s.poolKey}`);
 
     // per-pool daily counts, from complete windows only
     const day = new Date().toISOString().slice(0, 10);
     const perPool = new Map<string, any>();
     for (const s of swaps) {
-      if (!complete(s.slot)) continue;
+      if (!counted(s)) continue;
       let row = perPool.get(s.poolKey);
       if (!row) {
         row = {
@@ -402,7 +466,7 @@ Deno.serve(async () => {
     // training sample: every victim, plus a weighted share of everyone else
     const samples = [];
     for (const s of swaps) {
-      if (!s.quote || !complete(s.slot)) continue;
+      if (!s.quote || !counted(s)) continue;
       const isVictim = victimKeys.has(`${s.sig}|${s.poolKey}`);
       if (!isVictim && Math.random() >= NEGATIVE_SAMPLE_RATE) continue;
       const symbol = QUOTE_SYMBOL[s.quote.mint];

@@ -35,6 +35,12 @@ export interface LiveSummary {
   sandwiches_24h: number
   last_success_at: string | null
   provider: string | null
+  /** Slots the last 24 hours of scanning spanned; blocks_24h / slots_24h is the share of the chain read. */
+  slots_24h: number | null
+  profit_usd_24h: number | null
+  victims_24h: number | null
+  /** Detections tied together by a shared token account: bots rotating fee payers. */
+  two_wallet_24h: number | null
 }
 
 export interface IngestRun {
@@ -81,6 +87,8 @@ export interface LiveSandwich {
   victim_quote_in: number | null
   victim_loss_bps_lb: number | null
   confidence: number
+  /** How the legs were tied to one attacker: the same fee payer, or the same token account. */
+  link?: 'signer' | 'account'
 }
 
 export interface LivePool {

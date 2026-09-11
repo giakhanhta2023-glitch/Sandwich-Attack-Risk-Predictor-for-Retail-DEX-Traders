@@ -189,7 +189,16 @@ function StatusLine({
 
 function Totals({ summary }: { summary: LiveSummary | null }) {
   const rate = summary && summary.swaps_24h > 0 ? summary.sandwiches_24h / summary.swaps_24h : null
+  // The scanner reads a sample of blocks, so whole-chain figures divide by the
+  // share of blocks it actually read. About one slot in twenty produces no
+  // block, which the 0.95 accounts for.
+  const coverage =
+    summary?.slots_24h && summary.blocks_24h > 0 ? summary.blocks_24h / (summary.slots_24h * 0.95) : null
+  const hours = summary?.slots_24h ? (summary.slots_24h * SLOT_SECONDS) / 3600 : null
+  const taken = coverage && summary?.profit_usd_24h != null ? summary.profit_usd_24h / coverage : null
+  const victims = coverage && summary?.victims_24h != null ? summary.victims_24h / coverage : null
   return (
+    <>
     <Panel className="mb-4 grid gap-px overflow-hidden bg-line sm:grid-cols-2 lg:grid-cols-4">
       <div className="bg-ground p-4">
         <Stat
@@ -221,6 +230,33 @@ function Totals({ summary }: { summary: LiveSummary | null }) {
         />
       </div>
     </Panel>
+
+    {coverage != null && hours != null && taken != null && victims != null && (
+      <Panel className="mb-4 border-l-2 border-l-hot p-4">
+        <div className="eyebrow mb-3 text-hot">Scaled to all of Solana · last {Math.round(hours)}h</div>
+        <div className="grid gap-5 sm:grid-cols-3">
+          <Stat label="Taken from traders" value={`≈ ${usd(taken, 0)}`} sub="at least: attacker profit" tone="hot" size="lg" />
+          <Stat
+            label="Trades sandwiched"
+            value={`≈ ${Math.round(victims).toLocaleString()}`}
+            sub="victim swaps"
+            tone="hot"
+            size="lg"
+          />
+          <Stat
+            label="Share of the chain read"
+            value={pct(coverage, 1)}
+            sub={`${summary!.blocks_24h.toLocaleString()} blocks, scaled up from these`}
+          />
+        </div>
+        <p className="mt-3 text-[0.6875rem] leading-relaxed text-ink-faint">
+          Our detections divided by the share of blocks we read. It is a floor: the detector only counts sandwiches it
+          can tie to one attacker
+          {summary?.two_wallet_24h ? `, ${summary.two_wallet_24h} of them from bots that rotate wallets between legs` : ''}.
+        </p>
+      </Panel>
+    )}
+    </>
   )
 }
 
@@ -335,10 +371,11 @@ function RecentSandwiches({ events, now }: { events: LiveSandwich[]; now: number
                     </a>
                     <span className="text-ink-faint">/{e.quote_symbol}</span>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="space-x-1 whitespace-nowrap">
                     <Badge tone={e.tier === 'high' ? 'hot' : 'warn'}>
                       {e.slot_span === 0 ? '1 block' : `${e.slot_span + 1} blocks`}
                     </Badge>
+                    {e.link === 'account' && <Badge tone="info">2 wallets</Badge>}
                   </TableCell>
                   <TableCell className="num text-ink-dim">{e.victim_count}</TableCell>
                   <TableCell className="num text-hot">
