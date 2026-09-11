@@ -99,6 +99,7 @@ function Home({ pools, offline }: { pools: Pool[]; offline: boolean }) {
 
 function Header({ sources, path }: { sources: Methodology['sources'] | null; path: string }) {
   const [scrolled, setScrolled] = useState(false)
+  const summary = useLiveSummary(30_000)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12)
@@ -130,18 +131,30 @@ function Header({ sources, path }: { sources: Methodology['sources'] | null; pat
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <LiveIndicator />
+          <LiveIndicator summary={summary} />
           {sources &&
-            Object.entries(sources).map(([chain, s]) => (
-              <span
-                key={chain}
-                className="hidden items-center gap-1.5 rounded-sm border border-line px-2 py-0.5 font-mono text-[0.625rem] text-ink-faint lg:flex"
-                title={s.detail}
-              >
-                <LiveDot live={s.live} />
-                {s.provider}
-              </span>
-            ))}
+            Object.entries(sources).map(([chain, s]) => {
+              // Solana data reaches the site through the live scanner, so its badge
+              // reports the scanner's provider and health, not this server's settings.
+              const shown =
+                chain === 'solana' && summary
+                  ? {
+                      provider: summary.provider === 'helius' ? 'Helius' : 'Solana public RPC',
+                      live: healthOf(summary.last_success_at, Date.now()) === 'live',
+                      detail: `Live scanner via ${summary.provider ?? 'unknown provider'}`,
+                    }
+                  : s
+              return (
+                <span
+                  key={chain}
+                  className="hidden items-center gap-1.5 rounded-sm border border-line px-2 py-0.5 font-mono text-[0.625rem] text-ink-faint lg:flex"
+                  title={shown.detail}
+                >
+                  <LiveDot live={shown.live} />
+                  {shown.provider}
+                </span>
+              )
+            })}
         </div>
       </div>
     </header>
@@ -166,8 +179,7 @@ const INDICATOR_TEXT: Record<Health, string> = {
  * The entry point to the live dashboard: a status light that also says how old
  * the newest chain data is. Clicking it opens the dashboard.
  */
-function LiveIndicator() {
-  const summary = useLiveSummary(30_000)
+function LiveIndicator({ summary }: { summary: ReturnType<typeof useLiveSummary> }) {
   const now = useNow(1000)
   if (!liveConfigured) return null
   const health = healthOf(summary?.last_success_at, now)
@@ -232,8 +244,8 @@ function Hero() {
 
           <dl className="mt-6 grid max-w-lg grid-cols-3 gap-4 border-t border-line pt-4">
             {[
-              ['Closed form', 'front-run capacity'],
-              ['Calibrated', 'probability model'],
+              ['Exact AMM math', 'front-run capacity'],
+              ['Real-data model', 'trained on mainnet swaps'],
               ['Live mainnet', 'scanned every minute'],
             ].map(([a, b]) => (
               <div key={a}>
@@ -314,7 +326,7 @@ function Footer() {
               <div className="eyebrow mb-2.5">Sources</div>
               <ul className="space-y-1.5 text-ink-faint">
                 <li>Solana mainnet — Helius / public RPC</li>
-                <li>Ethereum — Google BigQuery</li>
+                <li>Ethereum — AMM formula; BigQuery feed not connected</li>
               </ul>
             </div>
           </div>

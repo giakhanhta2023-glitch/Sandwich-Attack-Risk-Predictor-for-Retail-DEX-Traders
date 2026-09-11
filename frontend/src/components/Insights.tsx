@@ -268,6 +268,9 @@ export function ModelCard() {
 
   const m = report.metrics
   const serving = report.serving
+  const live = report.live_model
+  const lm = { ...live?.metrics }
+  const maxWeight = Math.max(...(live?.features ?? []).map((f) => Math.abs(f.weight)), 0.01)
 
   return (
     <Section
@@ -275,21 +278,111 @@ export function ModelCard() {
       className="!py-8"
       eyebrow="Model card"
       title="What the model is, and where it is weak"
-      lede="Gradient-boosted trees with isotonic calibration, split chronologically by block so no future regime leaks backwards. Calibration matters more than ranking here: the recommendation multiplies this probability by a dollar loss, so a confidently wrong score produces a confidently wrong slippage."
+      lede={
+        live
+          ? 'For Solana pools the probability comes from a logistic regression trained on real mainnet swaps and retrained every six hours. It sees only what the chain shows (trade size, pool depth, direction, time of day and quote asset), so it estimates risk at the tolerances real traders use, and the AMM math carries that across the slippage sweep.'
+          : 'Gradient-boosted trees with isotonic calibration, split chronologically by block so no future regime leaks backwards. Calibration matters more than ranking here: the recommendation multiplies this probability by a dollar loss, so a confidently wrong score produces a confidently wrong slippage.'
+      }
     >
+      {live && (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <Panel className="border-l-2 border-l-cool p-4">
+            <div className="eyebrow mb-4 text-cool">Solana pools · trained on mainnet swaps</div>
+            <div className="grid grid-cols-2 gap-5">
+              <Stat
+                label="Real victims"
+                value={live.positives.toLocaleString()}
+                sub={`across ${live.victim_pools ?? '?'} pools`}
+                tone="cool"
+              />
+              <Stat
+                label="Swaps represented"
+                value={live.weighted_swaps.toLocaleString()}
+                sub={`${live.rows.toLocaleString()} sampled`}
+              />
+              <Stat
+                label="Holdout ROC AUC"
+                value={lm.roc_auc != null ? lm.roc_auc.toFixed(3) : 'n/a'}
+                sub={`${lm.holdout_positives ?? 0} victims held out`}
+                tone="cool"
+              />
+              <Stat
+                label="Brier score"
+                value={lm.brier != null ? lm.brier.toFixed(4) : 'n/a'}
+                sub="lower is better"
+              />
+            </div>
+            <Separator className="my-4 bg-line" />
+            <div className="space-y-1.5 text-[0.6875rem] text-ink-faint">
+              <div className="flex justify-between">
+                <span>Trained</span>
+                <span className="num">{new Date(live.trained_at).toUTCString().slice(5, 22)} UTC</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Split</span>
+                <span className="num">chronological, newest 20% held out</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Training data</span>
+                <span className="num text-cool">Solana mainnet</span>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel className="p-4">
+            <div className="eyebrow mb-1">What it leans on</div>
+            <h3 className="mb-4 text-base font-semibold">Standardised weights</h3>
+            <div className="space-y-3">
+              {live.features.map((f) => (
+                <div key={f.feature}>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-3 text-xs">
+                    <span className="text-ink-dim">{f.label}</span>
+                    <span className={cn('num', !f.signed ? 'text-ink-faint' : f.weight > 0 ? 'text-hot' : 'text-cool')}>
+                      {f.signed ? `${f.weight > 0 ? '+' : ''}${f.weight.toFixed(2)}` : `±${f.weight.toFixed(2)}`}
+                    </span>
+                  </div>
+                  <div className="h-1 bg-line">
+                    <div
+                      className={cn('h-full', !f.signed ? 'bg-ink-faint' : f.weight > 0 ? 'bg-hot' : 'bg-cool')}
+                      style={{ width: `${(Math.abs(f.weight) / maxWeight) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs leading-relaxed text-ink-faint">
+              Red raises the risk, green lowers it. Each weight is per standard deviation of real flow, so they
+              compare directly.
+            </p>
+          </Panel>
+        </div>
+      )}
+
       {serving?.mode === 'fallback' && (
         <Panel className="mb-4 border-l-2 border-l-warn p-4">
-          <div className="eyebrow mb-2 text-warn">Not the predictor running here</div>
+          <div className="eyebrow mb-2 text-warn">
+            {live ? 'Simulator model · not running here' : 'Not the predictor running here'}
+          </div>
           <p className="text-sm leading-relaxed text-ink">
-            The metrics below describe the trained model. This deployment is scoring with{' '}
-            <strong>{serving.detail}</strong>.
+            {live ? (
+              <>
+                The simulator model below is kept for reference. Solana pools use the mainnet model above; Ethereum
+                pools, which have no live data yet, are scored with <strong>{serving.detail}</strong>.
+              </>
+            ) : (
+              <>
+                The metrics below describe the trained model. This deployment is scoring with{' '}
+                <strong>{serving.detail}</strong>.
+              </>
+            )}
           </p>
-          {serving.affects && (
+          {serving.affects && !live && (
             <p className="mt-2 text-xs leading-relaxed text-ink-dim">{serving.affects}</p>
           )}
         </Panel>
       )}
 
+      {live && <div className="eyebrow mb-3">Simulator model · trained on simulated data</div>}
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel className="p-4">
           <div className="eyebrow mb-4">Held-out performance</div>
@@ -338,9 +431,20 @@ export function ModelCard() {
         <div className="eyebrow mb-3 text-warn">Known limitations</div>
         <ul className="grid gap-2.5 text-xs leading-relaxed text-ink-dim md:grid-cols-2">
           <li>
-            <strong className="text-ink">Training data is simulated.</strong> Without a Helius key the corpus
-            comes from the built-in simulator, not the chain. Metrics describe how well the model recovers a
-            known generating process — they are not out-of-sample chain performance.
+            {live ? (
+              <>
+                <strong className="text-ink">The Solana model is young.</strong> It has learned from{' '}
+                {live.positives} real victims across {live.victim_pools ?? '?'} pools, and bots work favourite pools
+                in bursts, so expect its numbers to move as data grows. It cannot see slippage tolerance, which
+                never appears on-chain.
+              </>
+            ) : (
+              <>
+                <strong className="text-ink">Training data is simulated.</strong> Without a Helius key the corpus
+                comes from the built-in simulator, not the chain. Metrics describe how well the model recovers a
+                known generating process — they are not out-of-sample chain performance.
+              </>
+            )}
           </li>
           <li>
             <strong className="text-ink">Constant-product only.</strong> The economics assume an x·y=k curve.

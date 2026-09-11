@@ -1,8 +1,8 @@
 """The model trained on real Solana mainnet flow.
 
 Covers the serving contract (features, artifact validation, attribution), the
-trainer-to-server hand-off, and the rule for when the live model takes the
-headline probability over from the simulator.
+trainer-to-server hand-off, and the rule that the live model sets the Solana
+headline whenever it exists.
 """
 
 import json
@@ -181,6 +181,22 @@ def test_the_trainer_declines_without_enough_real_victims(tmp_path, monkeypatch)
     assert not path.exists()
 
 
+def test_a_retrain_that_cannot_beat_a_coin_flip_keeps_the_previous_model(tmp_path, monkeypatch):
+    """The live model sets the headline unattended, so a bad retrain must not ship."""
+    pytest.importorskip("sklearn")
+    from backend.ml import train_live
+
+    path = tmp_path / "live_model.json"
+    path.write_text("previous model", encoding="utf-8")
+    monkeypatch.setattr(train_live, "fetch_samples", _synthetic_flow)
+    monkeypatch.setattr(train_live, "MODEL_PATH", path)
+    monkeypatch.setattr(train_live, "roc_auc_score", lambda *a, **k: 0.41)
+
+    result = train_live.train(verbose=False)
+    assert result["trained"] is False
+    assert path.read_text(encoding="utf-8") == "previous model"
+
+
 def test_a_feature_that_never_varied_cannot_swing_a_prediction(tmp_path, monkeypatch):
     """The first real sample spanned one hour, so time of day must carry no weight."""
     pytest.importorskip("sklearn")
@@ -207,11 +223,11 @@ def test_an_established_live_model_sets_the_solana_headline(serve, client):
     body = _analyze(client, _pool_id(client, "solana"))
     risk, live = body["risk"], body["risk"]["live_market"]
 
-    assert live["drives_headline"] is True and live["why_provisional"] is None
     assert risk["source"] == "live-mainnet"
     assert risk["p_attack"] == pytest.approx(live["p_attack"])
+    assert live["early"] is False and live["caveats"] == []
     assert "simulated_p_attack" in risk
-    # the explanation describes the number shown, not the simulator's
+    # the explanation describes the number shown, not the formula's
     assert {d["feature"] for d in risk["drivers"]} <= LIVE_GROUPS
 
 
@@ -221,22 +237,22 @@ def test_an_established_live_model_sets_the_solana_headline(serve, client):
         ({"positives": 40}, "40 of 100 real victims"),
         ({"metrics": {"roc_auc": 0.52}}, "(has 0.52)"),
         ({"metrics": {}}, "not yet measurable"),
-        # one bot working one favourite pool must not speak for every pool
+        # bots work favourite pools in bursts, so the spread is reported too
         ({"victim_pools": 8}, "20 pools (has 8)"),
         ({"top_pool_share": 0.5}, "top has 50%"),
         # an artifact from before spread was recorded counts as concentrated
         ({"victim_pools": None, "top_pool_share": None}, "20 pools (has 0)"),
     ],
 )
-def test_an_unproven_live_model_is_shown_but_does_not_decide(serve, client, overrides, shortfall):
+def test_an_early_live_model_still_sets_the_headline_and_says_what_it_lacks(serve, client, overrides, shortfall):
     serve(_artifact(**overrides))
     body = _analyze(client, _pool_id(client, "solana"))
-    live = body["risk"]["live_market"]
+    risk, live = body["risk"], body["risk"]["live_market"]
 
-    assert live["drives_headline"] is False
-    assert shortfall in live["why_provisional"]
-    assert body["risk"]["source"] != "live-mainnet"
-    assert "simulated_p_attack" not in body["risk"]
+    assert risk["source"] == "live-mainnet"
+    assert risk["p_attack"] == pytest.approx(live["p_attack"])
+    assert live["early"] is True
+    assert any(shortfall in c for c in live["caveats"])
 
 
 def test_the_solana_model_never_scores_ethereum(serve, client):
@@ -246,11 +262,24 @@ def test_the_solana_model_never_scores_ethereum(serve, client):
     assert body["risk"]["source"] != "live-mainnet"
 
 
-def test_without_a_live_model_the_simulator_stays_in_charge(serve, client):
+def test_without_a_live_model_the_formula_is_labelled_as_such(serve, client):
     serve(None)
     body = _analyze(client, _pool_id(client, "solana"))
     assert body["risk"]["live_market"] is None
     assert body["risk"]["source"] in {"trained", "fallback"}
+
+
+def test_the_model_card_describes_the_live_model(serve, client):
+    serve(_artifact())
+    res = client.get("/api/model")
+    if res.status_code == 404:
+        pytest.skip("no simulator report in this checkout")
+    card = res.json()["live_model"]
+    assert card["positives"] == 250 and card["victim_pools"] == 40
+    # the two hour terms appear once, as time of day
+    assert {f["feature"] for f in card["features"]} == LIVE_GROUPS
+    weights = [abs(f["weight"]) for f in card["features"]]
+    assert weights == sorted(weights, reverse=True)
 
 
 # --- measured corpus -------------------------------------------------------

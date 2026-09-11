@@ -34,9 +34,34 @@ export interface LiveMarket {
   trained_at: string
   window_end: string
   roc_auc: number | null
-  /** True once it has enough real victims and a good enough holdout score to set the headline. */
-  drives_headline: boolean
-  why_provisional: string | null
+  victim_pools: number
+  top_pool_share: number
+  /** Below the bar for an established model. Its number is still the one shown. */
+  early: boolean
+  /** What an established model would still need. */
+  caveats: string[]
+}
+
+/** The mainnet-trained model's card, served with /api/model. */
+export interface LiveModelCard {
+  trained_at: string
+  rows: number
+  positives: number
+  victim_pools: number | null
+  top_pool_share: number | null
+  weighted_swaps: number
+  base_rate: number
+  window: { start: string; end: string }
+  metrics: {
+    roc_auc?: number
+    pr_auc?: number
+    brier?: number
+    holdout_rows?: number
+    holdout_positives?: number
+    note?: string
+  }
+  /** Per standard deviation of real flow; `signed` is false for time of day, whose direction depends on the hour. */
+  features: Array<{ feature: string; label: string; weight: number; signed: boolean }>
 }
 
 export interface Driver {
@@ -197,6 +222,8 @@ export interface ServingMode {
 
 export interface ModelReport {
   serving?: ServingMode
+  /** Present whenever a model trained on mainnet swaps exists; it scores Solana pools. */
+  live_model?: LiveModelCard | null
   trained_at: number
   training_seconds: number
   data_source: string

@@ -154,6 +154,28 @@ def explain(
     return out[:top]
 
 
+def card() -> dict[str, Any] | None:
+    """The model card: what it learned from, and what it leans on.
+
+    Weights are per standard deviation of real flow, so they compare directly.
+    The two hour terms are one idea, time of day, reported as a single unsigned
+    magnitude because its direction depends on the hour.
+    """
+    model = load()
+    if model is None:
+        return None
+    coef = dict(zip(FEATURES, model["coef"]))
+    weights = []
+    for key, label, names in _GROUPS:
+        if len(names) == 1:
+            weights.append({"feature": key, "label": label, "weight": round(coef[names[0]], 4), "signed": True})
+        else:
+            magnitude = math.hypot(*(coef[n] for n in names))
+            weights.append({"feature": key, "label": label, "weight": round(magnitude, 4), "signed": False})
+    weights.sort(key=lambda d: -abs(d["weight"]))
+    return {**info(), "features": weights}
+
+
 def info() -> dict[str, Any] | None:
     """What the model was trained on -- shown next to anything it predicts."""
     model = load()

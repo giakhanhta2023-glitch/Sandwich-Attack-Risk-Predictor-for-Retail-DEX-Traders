@@ -492,33 +492,33 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
 /** Which model set the probability above, and how much real data stands behind it. */
 function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string }) {
   const live = risk.live_market
-  const base = risk.source === 'trained' ? 'Simulator-trained model.' : 'Closed-form estimate.'
+  const liveLink = (
+    <Link to="/live" className="text-ink-dim underline decoration-line-bright underline-offset-2 hover:text-ink">
+      Live data
+    </Link>
+  )
 
+  if (risk.source === 'live-mainnet' && live) {
+    return (
+      <p className="mt-2 text-[0.625rem] leading-relaxed text-ink-faint">
+        <span className="text-cool">Learned from Solana mainnet:</span>{' '}
+        <span className="num">{live.positives.toLocaleString()}</span> real victims across{' '}
+        <span className="num">{live.victim_pools}</span> pools, in ~
+        <span className="num">{live.weighted_swaps.toLocaleString()}</span> swaps.
+        {live.early && ' Early model, retrained every 6 hours as data grows.'} {liveLink}
+      </p>
+    )
+  }
+
+  const kind = risk.source === 'trained' ? 'Simulator-trained model' : 'Formula estimate from AMM economics'
   return (
     <p className="mt-2 text-[0.625rem] leading-relaxed text-ink-faint">
-      {risk.source === 'live-mainnet' && live ? (
+      {chain === 'solana' ? (
         <>
-          <span className="text-cool">Learned from Solana mainnet:</span>{' '}
-          <span className="num">{live.positives.toLocaleString()}</span> real victims in ~
-          <span className="num">{live.weighted_swaps.toLocaleString()}</span> swaps.
-        </>
-      ) : chain !== 'solana' ? (
-        base
-      ) : live ? (
-        <>
-          {base} The mainnet model reads <span className="num">{(live.p_attack * 100).toFixed(1)}%</span> but
-          is still training (<span className="num">{live.positives}</span> real victims so far).
+          {kind}: the mainnet-trained model is not available right now. {liveLink}
         </>
       ) : (
-        `${base} A model trained on live mainnet data takes over once it has seen enough real victims.`
-      )}
-      {chain === 'solana' && (
-        <>
-          {' '}
-          <Link to="/live" className="text-ink-dim underline decoration-line-bright underline-offset-2 hover:text-ink">
-            Live data
-          </Link>
-        </>
+        `${kind}: there is no live Ethereum data yet.`
       )}
     </p>
   )

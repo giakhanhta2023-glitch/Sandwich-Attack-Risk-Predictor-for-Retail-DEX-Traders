@@ -31,8 +31,9 @@ attacker's budget.
 2. **Detects and labels** sandwiches by matching front-run/victim/back-run triples —
    one wallet on both legs, the back-run unwinding the front-run, a victim in between,
    all inside one validator's leader window, and a round trip that made money.
-3. **Predicts risk** from real mainnet flow once enough attacks have been recorded, with
-   a simulator-trained gradient-boosted classifier as the fallback until then.
+3. **Predicts risk** for Solana pools with a model trained on real mainnet swaps and
+   retrained every six hours. Ethereum pools have no live feed yet, so they fall back to
+   the AMM economics, and the site labels which one produced each number.
 4. **Solves for the sweet spot** — the slippage tolerance minimising expected cost —
    and for whether splitting the order into chunks beats executing it whole.
 
@@ -133,13 +134,14 @@ coefficients as JSON. Serving is plain arithmetic, so it runs on Vercel without
 scikit-learn. A scheduled GitHub Action retrains every six hours and commits the new
 artifact once there is enough data (300 rows and 30 victims).
 
-**Taking over.** For Solana pools the mainnet model sets the headline probability once
-it has seen 100 real victims spread over at least 20 pools, with no pool supplying more
-than a third of them, and scores an AUC of at least 0.6 on its holdout. The spread rule
-exists because bots work favourite pools in bursts: in the first hour, one memecoin pool
-supplied 41% of all victims, and one bot's pool should not speak for every pool. Until
-then the analyser shows the model's figure next to the simulator's, marked as still
-training.
+**Setting the number.** For Solana pools, whenever a mainnet-trained model exists it sets
+the headline probability, and the formula's figure is kept only for comparison. A young
+model is labelled early, and the API lists what it still lacks against an established
+bar: 100 real victims spread over at least 20 pools, no pool supplying more than a third
+of them, and a holdout AUC of 0.6. The spread matters because bots work favourite pools
+in bursts; in the first hour one memecoin pool supplied 41% of all victims. And because
+the model now goes live unattended, a retrain that cannot beat a coin flip on its holdout
+keeps the previous model.
 Slippage tolerance is invisible on-chain, so the model estimates risk at the tolerances
 real traders actually use; the closed-form economics carry that across the slippage sweep.
 
@@ -190,10 +192,10 @@ output and `api/index.py` as a Python function wrapping the FastAPI app.
 The deployed function does **not** carry scikit-learn. The full stack is ~370MB
 unpacked against a 250MB function limit, so the serving path was restructured to
 need none of it — feature medians and corpus aggregates are precomputed at
-training time into small JSON files. Until the mainnet model takes over (it is
-served as plain arithmetic), sandwich probability in production comes from the
-closed-form economics rather than the calibrated model, and the site says which
-one produced every number. Everything else — the AMM math, the sweet-spot
+training time into small JSON files. For Solana pools, sandwich probability in
+production comes from the mainnet model, which is served as plain arithmetic;
+Ethereum pools, which have no live data yet, use the closed-form economics. The
+site labels which one produced every number. Everything else — the AMM math, the sweet-spot
 optimiser, the split ladder, the corpus — is identical to a local run.
 
 To run the trained model in production you need a host that fits a ~210MB
@@ -321,7 +323,7 @@ frontend/
   src/lib/live.ts       read-only Supabase queries behind the /live dashboard
   src/lib/router.tsx    path routing for /live, /terms and /privacy
   src/lib/utils.ts      cn() class merger
-tests/                  71 tests over the invariants, detector, optimiser, live model and API
+tests/                  73 tests over the invariants, detector, optimiser, live model and API
 ```
 
 ## Tech stack

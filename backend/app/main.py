@@ -190,6 +190,9 @@ def model_report() -> dict[str, Any]:
     # The metrics describe the training run. Whether that model is the one
     # answering /api/analyze right now is a separate question, so say which.
     report["serving"] = predictor.serving_mode()
+    # Solana pools are scored by the model trained on mainnet swaps whenever one
+    # exists, so its card is served alongside the simulator's.
+    report["live_model"] = live_model.card()
     report.pop("feature_medians", None)
     return report
 
@@ -226,10 +229,10 @@ def methodology() -> dict[str, Any]:
     }
 
 
-# The model trained on live Solana flow only sets the headline probability once
-# it has seen enough real victims, spread over enough pools that no one bot's
-# favourite pool defines it, and scores well on a chronological holdout. Below
-# that it is reported next to the simulator's figure as provisional.
+# Whenever a model trained on live Solana flow exists, it sets the headline for
+# Solana pools: a number measured on the chain beats a formula. These thresholds
+# no longer gate that. They mark the model as early, and what it still lacks is
+# returned with its number so a reader can judge how much data stands behind it.
 LIVE_MIN_POSITIVES = 100
 LIVE_MIN_AUC = 0.6
 LIVE_MIN_VICTIM_POOLS = 20
@@ -291,8 +294,8 @@ def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) 
         "roc_auc": auc,
         "victim_pools": victim_pools,
         "top_pool_share": top_share,
-        "drives_headline": not shortfalls,
-        "why_provisional": "needs " + "; ".join(shortfalls) if shortfalls else None,
+        "early": bool(shortfalls),
+        "caveats": shortfalls,
     }
 
 
@@ -326,11 +329,11 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
     )
 
     # --- 1b. real mainnet flow ------------------------------------------
-    # Once the model trained on live Solana data has earned it, it sets the
-    # probability. The simulator's figure is kept alongside for comparison, and
-    # the explanation switches to the live model so it describes the number shown.
+    # Whenever a model trained on live Solana data exists, it sets the
+    # probability. The formula's figure is kept alongside for comparison, and the
+    # explanation switches to the live model so it describes the number shown.
     live_market = _live_market_estimate(pool, req, hour)
-    if live_market and live_market["drives_headline"]:
+    if live_market:
         p_real = live_market["p_attack"]
         ml = {
             **ml,

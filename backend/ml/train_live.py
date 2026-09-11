@@ -41,6 +41,9 @@ MIN_POSITIVES = 30
 MIN_ROWS = 300
 HOLDOUT_FRACTION = 0.2
 PAGE = 1000
+# The model sets the Solana headline unattended, so a retrain must at least beat
+# a coin flip on data it has not seen, or the previous model stays in place.
+MIN_HOLDOUT_AUC = 0.5
 
 COLUMNS = "quote_usd,pool_depth_usd,side,hour_utc,quote_symbol,is_victim,sample_weight,created_at,pool_key"
 
@@ -127,6 +130,12 @@ def train(verbose: bool = True) -> dict[str, Any]:
         })
     else:
         metrics["note"] = "holdout lacks both classes; metrics withheld rather than reported on nothing"
+
+    auc = metrics.get("roc_auc")
+    if auc is not None and auc < MIN_HOLDOUT_AUC:
+        if verbose:
+            print(f"holdout ROC AUC {auc} does not beat a coin flip; the previous model stays.")
+        return {"trained": False, **status, "metrics": metrics, "reason": "holdout no better than chance"}
 
     # The exported model uses everything; the holdout only scores the method.
     mean, scale = _weighted_moments(x, w_arr)
