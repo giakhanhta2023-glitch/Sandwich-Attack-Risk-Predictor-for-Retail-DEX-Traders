@@ -88,16 +88,20 @@ def load() -> dict[str, Any] | None:
     return model
 
 
-def _held(model: dict[str, Any], hour_utc: int) -> frozenset[str]:
-    """Inputs held at the average of real flow for this request.
+def _uses_time_of_day(model: dict[str, Any]) -> bool:
+    """Time of day only counts once the training sample covers the whole day.
 
-    Time of day only counts for hours the training sample actually covers. The
-    first live sample spanned one evening, and a sine curve fitted to those hours
-    and extended across the rest of the day pushed afternoon risk toward zero.
-    An artifact that does not record its hours gets no time effect at all.
+    The first live sample spanned one evening. A sine curve fitted to it and
+    extended across the other hours pushed afternoon risk toward zero, and even
+    inside those hours it mostly recorded which bots happened to be busy that
+    night. An artifact that does not record its hours gets no time effect.
     """
-    seen = model.get("hours_seen") or []
-    return frozenset() if int(hour_utc) % 24 in seen else HOUR_FEATURES
+    return len(set(model.get("hours_seen") or [])) == 24
+
+
+def _held(model: dict[str, Any]) -> frozenset[str]:
+    """Inputs held at the average of real flow, where they contribute nothing."""
+    return frozenset() if _uses_time_of_day(model) else HOUR_FEATURES
 
 
 def _logit(model: dict[str, Any], x: list[float], at_mean: frozenset[str] = frozenset()) -> float:
@@ -128,7 +132,7 @@ def predict(
     x = featurize(size_usd, depth_usd, side, hour_utc, quote_symbol) if model else None
     if model is None or x is None:
         return None
-    return _sigmoid(_logit(model, x, _held(model, hour_utc)))
+    return _sigmoid(_logit(model, x, _held(model)))
 
 
 def explain(
@@ -149,7 +153,7 @@ def explain(
     x = featurize(size_usd, depth_usd, side, hour_utc, quote_symbol) if model else None
     if model is None or x is None:
         return []
-    held = _held(model, hour_utc)
+    held = _held(model)
     p = _sigmoid(_logit(model, x, held))
     shown = {
         "trade_size": size_usd,
@@ -191,6 +195,8 @@ def card() -> dict[str, Any] | None:
         if len(names) == 1:
             weights.append({"feature": key, "label": label, "weight": round(coef[names[0]], 4), "signed": True})
         else:
+            if key == "hour" and not _uses_time_of_day(model):
+                label = f"{label} (not used until a full day of data)"
             magnitude = math.hypot(*(coef[n] for n in names))
             weights.append({"feature": key, "label": label, "weight": round(magnitude, 4), "signed": False})
     weights.sort(key=lambda d: -abs(d["weight"]))

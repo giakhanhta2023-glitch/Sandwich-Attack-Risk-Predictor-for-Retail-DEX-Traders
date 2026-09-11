@@ -133,9 +133,8 @@ time of day, quote asset — scores it on a chronological holdout, and exports t
 coefficients as JSON. Serving is plain arithmetic, so it runs on Vercel without
 scikit-learn. A scheduled GitHub Action retrains every six hours and commits the new
 artifact once there is enough data (300 rows and 30 victims). The model never
-extrapolates past its data: time of day counts only for hours the sample covers and is
-held at the average elsewhere, and every input is clipped at four standard deviations
-from real flow. (The first version skipped this, and a time-of-day curve fitted to one
+extrapolates past its data: time of day is held at the average until the sample covers
+the whole day, and every input is clipped at four standard deviations from real flow. (The first version skipped this, and a time-of-day curve fitted to one
 evening pushed afternoon risk a hundred times too low.)
 
 **Setting the number.** For Solana pools, whenever a mainnet-trained model exists it sets

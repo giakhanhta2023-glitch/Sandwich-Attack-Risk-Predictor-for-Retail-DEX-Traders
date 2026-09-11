@@ -127,14 +127,18 @@ def test_attribution_reports_time_of_day_once_and_ranks_by_effect(serve):
     assert keys[0] == "size_to_depth"
 
 
-def test_an_hour_the_sample_never_covered_cannot_swing_a_prediction(serve):
-    """One evening of data must not decide what the afternoon looks like."""
+def test_time_of_day_waits_for_a_full_day_of_data(serve):
+    """One evening of data must not decide what any hour looks like."""
     serve(_artifact(coef=[0.2, -0.1, 0.9, 0.1, 0.0, 0.0, 0.0], hours_seen=[21, 22, 23]))
     no_time_effect = live_model.predict(1_000, 20_000, "buy", 14, "SOL")
 
     serve(_artifact(coef=[0.2, -0.1, 0.9, 0.1, 3.0, -3.0, 0.0], hours_seen=[21, 22, 23]))
-    assert live_model.predict(1_000, 20_000, "buy", 14, "SOL") == pytest.approx(no_time_effect)
-    # an hour it did see still uses what it learned there
+    for hour in (14, 22):  # neither an hour it never saw nor one it did
+        assert live_model.predict(1_000, 20_000, "buy", hour, "SOL") == pytest.approx(no_time_effect)
+    assert "full day" in next(f["label"] for f in live_model.card()["features"] if f["feature"] == "hour")
+
+    # once the whole day is covered, what it learned about the hour applies
+    serve(_artifact(coef=[0.2, -0.1, 0.9, 0.1, 3.0, -3.0, 0.0], hours_seen=list(range(24))))
     assert live_model.predict(1_000, 20_000, "buy", 22, "SOL") != pytest.approx(no_time_effect)
 
 
