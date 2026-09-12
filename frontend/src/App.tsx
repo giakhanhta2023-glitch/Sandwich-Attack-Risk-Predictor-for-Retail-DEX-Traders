@@ -3,9 +3,11 @@ import { api } from '@/api'
 import type { Methodology, Pool } from '@/api'
 import { Analyzer } from '@/components/Analyzer'
 import { AttackAnatomy } from '@/components/AttackAnatomy'
+import { AccountButton, PasswordRecovery } from '@/components/Auth'
 import { CorpusDashboard, MethodologySection, ModelCard } from '@/components/Insights'
 import { LiveDashboard } from '@/components/LiveDashboard'
 import { PrivacyPage, TermsPage } from '@/components/Legal'
+import { SavedTradesPage } from '@/components/SavedTrades'
 import { Badge, Disclosure, LiveDot, Panel } from '@/components/primitives'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -48,6 +50,8 @@ export default function App() {
             <TermsPage />
           ) : path === '/privacy' ? (
             <PrivacyPage />
+          ) : path === '/saved' ? (
+            <SavedTradesPage />
           ) : (
             <Home pools={pools} offline={offline} />
           )}
@@ -156,6 +160,8 @@ function Header({ sources, path }: { sources: Methodology['sources'] | null; pat
                 </span>
               )
             })}
+          <AccountButton />
+          <PasswordRecovery />
         </div>
       </div>
     </header>

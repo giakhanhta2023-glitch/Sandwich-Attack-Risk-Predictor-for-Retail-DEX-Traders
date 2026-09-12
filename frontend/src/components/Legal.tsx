@@ -6,13 +6,13 @@ import { Panel } from './primitives'
  * Terms of use and privacy policy.
  *
  * Every statement in the privacy policy describes what the code actually does:
- * the fields in the analyses table, the absence of cookies and trackers, the
- * third parties a browser really talks to, and the retention windows enforced
- * by the `retention-daily` cron job. Change one of those and this page has to
- * change with it.
+ * the fields in the analyses table, what an account stores, the absence of
+ * trackers, the third parties a browser really talks to, and the retention
+ * windows enforced by the `retention-daily` cron job. Change one of those and
+ * this page has to change with it.
  */
 
-const EFFECTIVE = '10 September 2026'
+const EFFECTIVE = '12 September 2026'
 const REPO = 'https://github.com/giakhanhta2023-glitch/Sandwich-Attack-Risk-Predictor-for-Retail-DEX-Traders'
 const CONTACT = `${REPO}/issues`
 
@@ -82,7 +82,7 @@ export function PrivacyPage() {
     <LegalPage
       eyebrow="Privacy"
       title="Privacy policy"
-      lede="Sandwich Radar is a free research tool. It has no accounts and does not track you. This page explains exactly what data it handles and why."
+      lede="Sandwich Radar is a free research tool. It does not track you, and an account is optional. This page explains exactly what data it handles and why."
       other={
         <Link to="/terms" className="text-ink underline underline-offset-2">
           the terms of use
@@ -90,9 +90,9 @@ export function PrivacyPage() {
       }
     >
       <Panel className="border-l-2 border-l-cool p-4 text-[0.8125rem] leading-relaxed text-ink-dim">
-        <strong className="text-ink">In short:</strong> no accounts, no cookies, no tracking, and no wallet
-        connection. We never ask for private keys or seed phrases. When a trade analysis is stored, it holds only the
-        trade details you typed and our answer — never your IP address, wallet, or anything that identifies you.
+        <strong className="text-ink">In short:</strong> no tracking, no wallet connection, and an account only if
+        you want to save trades. We never ask for private keys or seed phrases. A stored analysis holds only the trade
+        details you typed and our answer — never your IP address, wallet, or anything that identifies you.
       </Panel>
 
       <Clause title="1. What happens when you analyse a trade">
@@ -108,16 +108,33 @@ export function PrivacyPage() {
         </p>
       </Clause>
 
-      <Clause title="2. What we don’t collect">
+      <Clause title="2. If you create an account">
+        <p>
+          An account is optional: the risk engine and the live data work without one. Creating one stores your email
+          address and the username you choose. Your password is handled by our authentication provider, Supabase,
+          which stores only a hash of it — it never reaches our own code or tables, and nobody can read it back.
+        </p>
+        <p>
+          Signed in, you can save trades you have analysed. A saved trade holds the pool, the size and slippage you
+          entered, and what we recommended, tied to your account. Only you can read them: the database checks your
+          session on every read, and you can delete any of them at any time.
+        </p>
+        <p>
+          While you are signed in, your browser keeps a session token in its local storage, so a refresh does not sign
+          you out. Signing out removes it.
+        </p>
+      </Clause>
+
+      <Clause title="3. What we don’t collect">
         <Plain>
-          <li>No accounts, sign-ins or email addresses.</li>
-          <li>No cookies, local storage or similar browser storage.</li>
+          <li>No tracking cookies. Signed in, your browser stores only the session that keeps you signed in.</li>
+          <li>Nothing beyond your email, username and saved trades, and only if you create an account.</li>
           <li>No analytics, advertising or tracking scripts, and no fingerprinting.</li>
           <li>No wallet connection, and never private keys or seed phrases.</li>
         </Plain>
       </Clause>
 
-      <Clause title="3. Public blockchain data">
+      <Clause title="4. Public blockchain data">
         <p>
           The live data feature reads public Solana blockchain data. When it detects a sandwich attack, it stores the
           transaction signatures and public wallet addresses involved, together with amounts and times. This
@@ -126,7 +143,7 @@ export function PrivacyPage() {
         </p>
       </Clause>
 
-      <Clause title="4. Other companies involved">
+      <Clause title="5. Other companies involved">
         <p>These services help run the site. Each only receives what is described here.</p>
         <Plain>
           <li>
@@ -135,8 +152,9 @@ export function PrivacyPage() {
             <Ext href="https://vercel.com/legal/privacy-policy">Vercel’s privacy policy</Ext>.
           </li>
           <li>
-            <strong className="text-ink">Supabase</strong> hosts our database in the United States. The live data page
-            loads public figures directly from Supabase, so your browser contacts it when you open that page. See{' '}
+            <strong className="text-ink">Supabase</strong> hosts our database in the United States and runs sign-in
+            for accounts, including storing the hash of your password. The live data page loads public figures directly
+            from Supabase, so your browser contacts it when you open that page. See{' '}
             <Ext href="https://supabase.com/privacy">Supabase’s privacy policy</Ext>.
           </li>
           <li>
@@ -151,36 +169,42 @@ export function PrivacyPage() {
         </Plain>
       </Clause>
 
-      <Clause title="5. How long we keep it">
+      <Clause title="6. How long we keep it">
         <Plain>
           <li>Saved trade analyses: 180 days.</li>
           <li>Records of each blockchain scan: 14 days.</li>
           <li>Sampled swap data used to train the model: 30 days.</li>
           <li>Daily per-pool activity counts: 90 days.</li>
           <li>Detected sandwich attacks: kept as a research record, since they are public blockchain data.</li>
+          <li>Your account and saved trades: until you delete them.</li>
         </Plain>
         <p>Older records are deleted automatically every day.</p>
       </Clause>
 
-      <Clause title="6. Sharing">
+      <Clause title="7. Sharing">
         <p>
           We do not sell, rent or trade data. Statistics built from public blockchain data, such as attack rates per
           pool, are shown publicly on this site.
         </p>
       </Clause>
 
-      <Clause title="7. Your choices">
+      <Clause title="8. Your choices">
         <p>
-          Because we do not store anything that identifies you, we usually cannot find records that relate to you. If
-          you believe we hold data about you — for example a wallet address — <Contact /> and we will look into it.
+          Without an account we store nothing that identifies you, so we usually cannot find records that relate to
+          you. If you believe we hold data about you — for example a wallet address — <Contact /> and we will look
+          into it.
+        </p>
+        <p>
+          With an account, you can see and delete your saved trades at any time on your saved trades page. To have the
+          account itself and its email deleted, <Contact /> and we will remove it.
         </p>
       </Clause>
 
-      <Clause title="8. Children">
+      <Clause title="9. Children">
         <p>This service is not directed at children.</p>
       </Clause>
 
-      <Clause title="9. Changes">
+      <Clause title="10. Changes">
         <p>
           If this policy changes, we will update this page and its effective date. The source code is public on{' '}
           <Ext href={REPO}>GitHub</Ext>, so any change to what the site collects is visible there too.
@@ -205,12 +229,23 @@ export function TermsPage() {
       <Clause title="1. What this service is">
         <p>
           Sandwich Radar is a free research and educational tool. It estimates the risk that a swap on a decentralised
-          exchange will be sandwich-attacked, and suggests slippage settings that may reduce the expected cost. No
-          account is needed.
+          exchange will be sandwich-attacked, and suggests slippage settings that may reduce the expected cost. An
+          account is optional, and only needed to save trades.
         </p>
       </Clause>
 
-      <Clause title="2. Not financial advice">
+      <Clause title="2. Your account">
+        <p>
+          You need an account only to save trades. Keep your password to yourself, use one you do not use anywhere
+          else, and tell us if you think someone else has it. You are responsible for what happens under your account.
+        </p>
+        <p>
+          Please don’t create accounts in bulk or automatically. We may suspend or remove an account that breaks these
+          terms. You can delete your saved trades yourself, and ask us to delete the account itself.
+        </p>
+      </Clause>
+
+      <Clause title="3. Not financial advice">
         <p>
           Nothing on this site is investment, financial, legal or tax advice. Every figure is an estimate from a
           statistical model and can be wrong. Parts of the service use simulated data, and the site labels where. You
@@ -218,21 +253,21 @@ export function TermsPage() {
         </p>
       </Clause>
 
-      <Clause title="3. We never touch your funds">
+      <Clause title="4. We never touch your funds">
         <p>
           We do not execute trades, hold funds or connect to your wallet. Never share your private keys or seed phrase
           with anyone — we will never ask for them.
         </p>
       </Clause>
 
-      <Clause title="4. Data accuracy and availability">
+      <Clause title="5. Data accuracy and availability">
         <p>
           Blockchain data comes from third parties and from a rolling sample of recent blocks. It may be delayed,
           incomplete or inaccurate. We may change, pause or stop any part of the service at any time, without notice.
         </p>
       </Clause>
 
-      <Clause title="5. Fair use">
+      <Clause title="6. Fair use">
         <p>Please don’t:</p>
         <Plain>
           <li>try to disrupt, overload or break the website, its API or its data pipeline;</li>
@@ -242,21 +277,21 @@ export function TermsPage() {
         <p>Automated access at reasonable volumes is fine.</p>
       </Clause>
 
-      <Clause title="6. No warranty">
+      <Clause title="7. No warranty">
         <p>
           The service is provided “as is” and “as available”, without warranties of any kind, to the fullest extent
           the law allows.
         </p>
       </Clause>
 
-      <Clause title="7. Limitation of liability">
+      <Clause title="8. Limitation of liability">
         <p>
           To the fullest extent the law allows, we are not liable for any loss or damage arising from your use of, or
           reliance on, the service — including trading losses, losses to MEV or sandwich attacks, and lost profits.
         </p>
       </Clause>
 
-      <Clause title="8. Changes to these terms">
+      <Clause title="9. Changes to these terms">
         <p>
           We may update these terms. The effective date above shows when they last changed, and continuing to use the
           service means you accept the current version.

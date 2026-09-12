@@ -20,6 +20,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { Link } from '@/lib/router'
+import { AuthDialog } from './Auth'
+import { saveTrade, useAccount } from '@/lib/auth'
 
 const SLIPPAGE_PRESETS = [10, 30, 50, 100, 300, 500]
 const SIZE_PRESETS = [500, 5_000, 25_000, 100_000]
@@ -37,6 +39,17 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
 
   useEffect(() => {
     if (!poolId && pools.length) {
+      // Reopened from a saved trade: the link carries what was analysed.
+      const wanted = new URLSearchParams(window.location.search)
+      const savedPool = wanted.get('pool')
+      const savedSize = Number(wanted.get('size'))
+      const savedSlippage = Number(wanted.get('slippage'))
+      if (savedPool) {
+        if (savedSize > 0) setNotional(savedSize)
+        if (savedSlippage > 0) setSlippage(savedSlippage)
+        setPoolId(savedPool)
+        return
+      }
       // Open on the real pool where sandwiches caught the most trades this week,
       // at a size typical for it, so the first number anyone sees is measured.
       // Without live data, fall back to a memecoin pair at the 3% tolerance
@@ -500,9 +513,73 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
           >
             Apply {bps(sweet_spot.slippage_bps)} →
           </Button>
+          <SaveTrade result={result} />
         </div>
       </div>
     </Panel>
+  )
+}
+
+/** Keep this trade against your account, so you can come back to the decision. */
+function SaveTrade({ result }: { result: Analysis }) {
+  const { account } = useAccount()
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [signIn, setSignIn] = useState(false)
+
+  // A different trade is a different decision, so it can be saved again.
+  useEffect(() => setState('idle'), [result.input.pool.pool_id, result.input.notional_usd, result.input.slippage_bps])
+
+  const save = async () => {
+    if (!account) {
+      setSignIn(true)
+      return
+    }
+    setState('saving')
+    try {
+      await saveTrade({
+        pool_id: result.input.pool.pool_id,
+        pool_symbol: result.input.pool.symbol,
+        notional_usd: result.input.notional_usd,
+        slippage_bps: result.input.slippage_bps,
+        p_attack: result.risk.p_attack,
+        risk_band: result.risk.risk_band,
+        recommended_slippage_bps: result.sweet_spot.slippage_bps,
+        expected_saving_usd: result.sweet_spot.savings_vs_current_usd,
+        note: null,
+      })
+      setState('saved')
+    } catch {
+      setState('error')
+    }
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={save}
+        disabled={state === 'saving' || state === 'saved'}
+        className="mt-1.5 w-full rounded-sm border border-line px-2 py-1 text-[0.625rem] text-ink-faint transition-colors hover:border-line-bright hover:text-ink disabled:hover:border-line"
+      >
+        {state === 'saved' ? (
+          <>
+            Saved ·{' '}
+            <Link to="/saved" className="underline decoration-line-bright underline-offset-2">
+              your trades
+            </Link>
+          </>
+        ) : state === 'saving' ? (
+          'Saving\u2026'
+        ) : state === 'error' ? (
+          'Could not save — try again'
+        ) : account ? (
+          'Save trade'
+        ) : (
+          'Sign in to save'
+        )}
+      </button>
+      <AuthDialog open={signIn} onOpenChange={setSignIn} initialMode="signin" />
+    </>
   )
 }
 
