@@ -35,7 +35,7 @@ WITH swaps AS (
     l.transaction_index,
     l.address AS pool_id,
     CONCAT('0x', SUBSTR(l.topics[SAFE_OFFSET(2)], 27)) AS recipient,
-    -- decode the four uint256 words out of the ABI-packed data blob
+    /* decode the four uint256 words out of the ABI-packed data blob */
     CAST(CONCAT('0x', SUBSTR(l.data, 3, 64))   AS BIGNUMERIC) AS amount0_in,
     CAST(CONCAT('0x', SUBSTR(l.data, 67, 64))  AS BIGNUMERIC) AS amount1_in,
     CAST(CONCAT('0x', SUBSTR(l.data, 131, 64)) AS BIGNUMERIC) AS amount0_out,
@@ -122,11 +122,11 @@ JOIN swaps AS b
  AND b.pool_id = f.pool_id
  AND b.transaction_index > v.transaction_index
  AND b.trader = f.trader
--- front-run and victim trade the same way, back-run unwinds it
+/* front-run and victim trade the same way, back-run unwinds it */
 WHERE f.amount0_in > 0 AND v.amount0_in > 0 AND b.amount1_in > 0
-  -- the back-run must return roughly the position the front-run acquired
+  /* the back-run must return roughly the position the front-run acquired */
   AND ABS(SAFE_DIVIDE(b.amount1_in - f.amount1_out, NULLIF(f.amount1_out, 0))) < 0.02
-  -- and the round trip has to actually make money
+  /* and the round trip has to actually make money */
   AND b.amount0_out > f.amount0_in
 """
 

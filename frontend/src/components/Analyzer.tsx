@@ -468,11 +468,28 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+/**
+ * What an expected cost is made of. The pool fee and price impact are what the
+ * trade costs with no bot in the picture and no tolerance can remove them, so
+ * separating them is the difference between a number that looks arbitrary and
+ * one you can act on: only the second line moves when you change the slider.
+ */
+function CostSplit({ slippageBps, total, impact }: { slippageBps: number; total: number; impact: number }) {
+  return (
+    <>
+      at {bps(slippageBps)}
+      <div className="mt-0.5">{usd(impact)} pool fee + price impact</div>
+      <div>{usd(Math.max(0, total - impact))} to bots and retries</div>
+    </>
+  )
+}
+
 /** Headline verdict: risk band, what it costs now, what it could cost. */
 function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number) => void }) {
   const { risk, current_setting, sweet_spot, economics } = result
   const band = risk.risk_band
   const saving = sweet_spot.savings_vs_current_usd
+  const impact = economics.baseline_impact_usd
 
   return (
     <Panel className="overflow-hidden">
@@ -510,14 +527,14 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
           <Stat
             label="Expected cost now"
             value={usd(current_setting.expected_cost_usd)}
-            sub={`at ${bps(current_setting.slippage_bps)} · worst case ${usd(current_setting.worst_case_loss_usd)}`}
+            sub={<CostSplit slippageBps={current_setting.slippage_bps} total={current_setting.expected_cost_usd} impact={impact} />}
             tone={saving > 0.5 ? 'hot' : 'neutral'}
           />
           <div className="mt-4">
             <Stat
               label="Expected cost optimised"
               value={usd(sweet_spot.expected_cost_usd)}
-              sub={`at ${bps(sweet_spot.slippage_bps)} · ${sweet_spot.expected_cost_bps.toFixed(1)}bp of notional`}
+              sub={<CostSplit slippageBps={sweet_spot.slippage_bps} total={sweet_spot.expected_cost_usd} impact={impact} />}
               tone="cool"
             />
           </div>
