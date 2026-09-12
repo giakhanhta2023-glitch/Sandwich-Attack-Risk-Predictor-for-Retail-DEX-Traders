@@ -129,10 +129,37 @@ def health() -> dict[str, Any]:
     predictor = get_predictor()
     return {
         "status": "ok",
-        "model_trained": predictor.trained,
-        "serving": predictor.serving_mode(),
+        "model_trained": predictor.trained or live_model.load() is not None,
+        "serving": _serving_mode(predictor),
         "sources": settings.source_status(),
         "database": db_status(),
+    }
+
+
+def _serving_mode(predictor: Any) -> dict[str, Any]:
+    """Which model is answering, in the words of whichever one it is.
+
+    On Vercel the scientific stack is absent, so the scikit-learn predictor never
+    loads -- but the mainnet-trained model does, as plain arithmetic. Reporting
+    only the predictor made a live deployment call itself a fallback.
+    """
+    live = live_model.info()
+    if live is None:
+        return predictor.serving_mode()
+    metrics = live.get("metrics") or {}
+    auc = metrics.get("roc_auc")
+    return {
+        "mode": "live-mainnet",
+        "detail": (
+            f"weighted logistic regression fitted on {live.get('positives')} sandwiched "
+            f"and {live.get('rows')} sampled mainnet swaps"
+            + (f", holdout ROC-AUC {auc}" if auc else "")
+        ),
+        "trained_at": live.get("trained_at"),
+        "affects": (
+            "Real pools are answered by this model, shifted by the pool's own measured "
+            "victim rate. The reference pools keep the closed-form economics."
+        ),
     }
 
 
@@ -533,7 +560,15 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
         ),
         "meta": {
             "computed_at": int(time.time()),
-            "data_source": "simulated" if not settings.helius_live and not settings.bigquery_live else "mixed",
+            # what actually produced this answer, not what this server is wired to:
+            # "chain" only when both the model and the pool were measured on
+            # mainnet, "mixed" when a chain-trained model answers for a
+            # reference pool whose depth and fee come from the registry.
+            "data_source": (
+                "chain" if ml.get("source") == "live-mainnet" and pool.get("live")
+                else "mixed" if ml.get("source") == "live-mainnet" or pool.get("live")
+                else "simulated"
+            ),
             "model": ml["model"],
             "assumptions": {
                 "chase_factor": ctx.chase_factor,

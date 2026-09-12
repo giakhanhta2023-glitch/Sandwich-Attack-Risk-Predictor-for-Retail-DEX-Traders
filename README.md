@@ -109,6 +109,7 @@ pg_cron, every minute ──> solana-ingest Edge Function ──> Supabase Postg
                                                            ├─ pool_activity_daily  swaps and attacks per pool
                                                            ├─ swap_samples         the training sample
                                                            └─ ingest_runs          what each scan covered
+pg_cron, every 5 min ─────> per-pool rate snapshot (cache.pool_risk, behind live_pool_risk)
 GitHub Actions, every 6h ──> train_live.py ──> backend/artifacts/live_model.json ──> Vercel redeploy
 ```
 
@@ -282,7 +283,11 @@ Schema lives in Supabase Postgres (eleven tables, five views):
 
 `sandwich_events`, `swap_samples` and `pool_activity_daily` are filled every minute by
 the live pipeline, which is how the corpus stops being simulated and starts being
-measured. Retention runs daily: analyses 180 days, runs 14, samples 30, pool counts 90;
+measured. Per-pool rates are rolled up into a snapshot every five minutes and read from
+there: computing them per request meant aggregating seven days of every pool on the chain
+(3.5s) on every page load, against the same instance the scanner writes to. The snapshot
+carries the time it was taken as `measured_through`, and the API already cached these for
+five minutes, so nothing shows a number it would not have shown before. Retention runs daily: analyses 180 days, runs 14, samples 30, pool counts 90;
 detections are kept.
 
 **Security.** RLS is on for every table, and grants are separate from policies —

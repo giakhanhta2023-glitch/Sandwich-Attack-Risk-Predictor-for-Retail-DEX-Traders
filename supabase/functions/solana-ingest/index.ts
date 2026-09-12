@@ -45,6 +45,11 @@ const FETCH_CONCURRENCY = HELIUS_KEY ? 4 : 1;
 const BLOCK_TRIES = HELIUS_KEY ? 4 : 5;
 const BACKOFF_MS = HELIUS_KEY ? 500 : 1000;
 const RUN_BUDGET_MS = 40_000;
+// Writes go through the Data API gateway, which occasionally answers a 504
+// ("Gateway Timeout") while the database itself is fine. Every write below is
+// safe to repeat, so a retry costs a second and saves a whole scan.
+const WRITE_TRIES = 3;
+const WRITE_BACKOFF_MS = 400;
 
 const PUMP_BONDING_CURVE = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 const DEX_PROGRAMS = new Set([
@@ -127,6 +132,30 @@ async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<v
     while (next < items.length) await fn(items[next++]);
   });
   await Promise.all(workers);
+}
+
+/**
+ * Run one write, retrying a transient failure. Returns null on success, or the
+ * failure labelled with which write it was -- without a label, a run that fails
+ * only says "Gateway Timeout" and never says what timed out.
+ */
+async function write(
+  label: string,
+  attempt: () => PromiseLike<{ error: { message: string } | null }>,
+  tries = WRITE_TRIES,
+): Promise<string | null> {
+  for (let i = 1; ; i++) {
+    let message: string;
+    try {
+      const { error } = await attempt();
+      if (!error) return null;
+      message = error.message;
+    } catch (e) {
+      message = String(e instanceof Error ? e.message : e);
+    }
+    if (i >= tries) return `${label}: ${message}`;
+    await sleep(WRITE_BACKOFF_MS * i);
+  }
 }
 
 /** Pull pool-side vault flows and pool swaps out of one block. */
@@ -484,16 +513,22 @@ Deno.serve(async () => {
       });
     }
 
-    const writes = [];
-    if (events.length) {
-      writes.push(db.from("sandwich_events").upsert(events, { onConflict: "frontrun_tx,backrun_tx", ignoreDuplicates: true }));
-    }
-    if (perPool.size) writes.push(db.rpc("record_pool_activity", { p_rows: [...perPool.values()] }));
-    if (samples.length) {
-      writes.push(db.from("swap_samples").upsert(samples, { onConflict: "tx,pool_key", ignoreDuplicates: true }));
-    }
-    const results = await Promise.all(writes);
-    const writeErrors = results.map((r: any) => r.error?.message).filter(Boolean);
+    // Both upserts ignore duplicates and the per-pool counters are keyed to this
+    // run id, so repeating any of these three writes changes nothing.
+    const writeErrors = (await Promise.all([
+      events.length
+        ? write("sandwich_events", () =>
+          db.from("sandwich_events").upsert(events, { onConflict: "frontrun_tx,backrun_tx", ignoreDuplicates: true }))
+        : null,
+      perPool.size
+        ? write("pool_activity", () =>
+          db.rpc("record_pool_activity", { p_rows: [...perPool.values()], p_run_id: runId }))
+        : null,
+      samples.length
+        ? write("swap_samples", () =>
+          db.from("swap_samples").upsert(samples, { onConflict: "tx,pool_key", ignoreDuplicates: true }))
+        : null,
+    ])).filter((e): e is string => e !== null);
 
     // A partial run says why: which blocks were missed, what the RPC said, and
     // how much of the scan was kept out of training because of it.
@@ -523,18 +558,24 @@ Deno.serve(async () => {
       duration_ms: Math.round(performance.now() - t0),
       error: (writeErrors.length ? writeErrors.join("; ") : missNote)?.slice(0, 500) ?? null,
     };
-    await db.from("ingest_runs").update(summary).eq("id", runId);
-
-    const { data: cur } = await db.from("ingestion_cursors").select("swaps_ingested,events_detected").eq("source", "solana-live").maybeSingle();
-    await db.from("ingestion_cursors").upsert({
-      source: "solana-live",
-      last_block: lastSlot,
-      last_run_at: summary.finished_at,
-      swaps_ingested: (cur?.swaps_ingested ?? 0) + swaps.length,
-      events_detected: (cur?.events_detected ?? 0) + events.length,
-      status: summary.status === "error" ? "error" : "idle",
-      last_error: summary.error,
-    }, { onConflict: "source" });
+    // This row is what the dashboard reads to say how fresh the data is, so it
+    // is worth retrying. The cursor's running totals are not read by anything
+    // and add to themselves, so they get one attempt rather than a retry that
+    // could count a run twice.
+    await write("ingest_runs", () => db.from("ingest_runs").update(summary).eq("id", runId));
+    await write("ingestion_cursors", async () => {
+      const { data: cur } = await db.from("ingestion_cursors")
+        .select("swaps_ingested,events_detected").eq("source", "solana-live").maybeSingle();
+      return await db.from("ingestion_cursors").upsert({
+        source: "solana-live",
+        last_block: lastSlot,
+        last_run_at: summary.finished_at,
+        swaps_ingested: (cur?.swaps_ingested ?? 0) + swaps.length,
+        events_detected: (cur?.events_detected ?? 0) + events.length,
+        status: summary.status === "error" ? "error" : "idle",
+        last_error: summary.error,
+      }, { onConflict: "source" });
+    }, 1);
 
     return json({ run_id: runId, provider: PROVIDER, ...summary });
   } catch (e) {
