@@ -1,0 +1,8 @@
+# Just enough for `supabase functions deploy` to find this project and keep the
+# scanner's existing settings. Everything else about the project is managed in
+# Supabase itself; this file is not a full local-development config.
+project_id = "zhmgaubrpkbooabztajo"
+
+[functions.solana-ingest]
+# pg_cron calls the function with the anon key in the Authorization header
+verify_jwt = true
