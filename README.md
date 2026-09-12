@@ -264,7 +264,7 @@ python -m pytest tests -q
 
 ### Database
 
-Schema lives in Supabase Postgres (nine tables, five views):
+Schema lives in Supabase Postgres (eleven tables, five views):
 
 | Table | Holds |
 |---|---|
@@ -277,6 +277,8 @@ Schema lives in Supabase Postgres (nine tables, five views):
 | `ingestion_cursors` | per-source watermarks so pulls resume instead of rescanning |
 | `analyses` | every risk query and what was recommended |
 | `model_runs` | training metrics over time, so drift is visible |
+| `profiles` | one username per account; passwords live in Supabase Auth, hashed, never here |
+| `saved_trades` | trades a signed-in trader kept, readable only by that account |
 
 `sandwich_events`, `swap_samples` and `pool_activity_daily` are filled every minute by
 the live pipeline, which is how the corpus stops being simulated and starts being
@@ -284,7 +286,9 @@ measured. Retention runs daily: analyses 180 days, runs 14, samples 30, pool cou
 detections are kept.
 
 **Security.** RLS is on for every table, and grants are separate from policies —
-`anon` gets `SELECT` on the public research tables and live views and nothing else. There
+`anon` gets `SELECT` on the public research tables and live views and nothing else. The two account
+tables go further: signed-out visitors hold no privileges on them at all, and every policy on them is
+keyed to `auth.uid()`, so a trader reads and deletes only their own rows. There
 is no public write path anywhere; ingestion and telemetry go through the service
 role. `analyses` (query telemetry) and `ingestion_cursors` (scheduler state) are
 denied at both the grant and policy layer.
