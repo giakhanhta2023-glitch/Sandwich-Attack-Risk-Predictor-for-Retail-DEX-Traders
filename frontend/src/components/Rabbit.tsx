@@ -9,11 +9,18 @@ import { cn } from '@/lib/utils'
  * readers: the numbers beside them carry the meaning.
  */
 const POSE = {
+  idle: '/pixel/rabbit-idle.gif',
   hop: '/pixel/rabbit-hop.gif',
   run: '/pixel/rabbit-run.gif',
   alert: '/pixel/rabbit-alert.gif',
   sleep: '/pixel/rabbit-sleep.gif',
   eat: '/pixel/rabbit-eat.gif',
+  heart: '/pixel/rabbit-heart.gif',
+  coin: '/pixel/rabbit-coin.gif',
+  sparkle: '/pixel/rabbit-sparkle.gif',
+  question: '/pixel/rabbit-question.gif',
+  cry: '/pixel/rabbit-cry.gif',
+  wave: '/pixel/rabbit-wave.gif',
 } as const
 
 export type RabbitPose = keyof typeof POSE

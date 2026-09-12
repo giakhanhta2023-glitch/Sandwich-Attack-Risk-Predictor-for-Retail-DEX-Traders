@@ -162,7 +162,7 @@ function StatusLine({
         <span className={cn('eyebrow !text-[0.6875rem]', HEALTH_TEXT[health])}>{HEALTH_LABEL[health]}</span>
         <Rabbit
           pose={health === 'live' ? 'run' : 'sleep'}
-          size={18}
+          size={32}
           title={health === 'live' ? 'Scanning mainnet' : 'Waiting for the next scan'}
         />
       </span>
@@ -239,7 +239,10 @@ function Totals({ summary }: { summary: LiveSummary | null }) {
 
     {coverage != null && hours != null && taken != null && victims != null && (
       <Panel className="mb-4 border-l-2 border-l-hot p-4">
-        <div className="eyebrow mb-3 text-hot">Scaled to all of Solana · last {Math.round(hours)}h</div>
+        <div className="mb-3 flex items-center gap-2">
+          <Rabbit pose="cry" size={32} title="This is taken from traders" />
+          <span className="eyebrow text-hot">Scaled to all of Solana · last {Math.round(hours)}h</span>
+        </div>
         <div className="grid gap-5 sm:grid-cols-3">
           <Stat label="Taken from traders" value={`≈ ${usd(taken, 0)}`} sub="at least: attacker profit" tone="hot" size="lg" />
           <Stat
@@ -359,7 +362,7 @@ function RecentSandwiches({ events, now }: { events: LiveSandwich[]; now: number
             {events.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={7} className="py-6 text-center text-[0.75rem] text-ink-faint">
-                  <Rabbit pose="sleep" size={30} className="mx-auto mb-2" />
+                  <Rabbit pose="sleep" size={72} className="mx-auto mb-2" />
                   No sandwiches in the blocks scanned so far.
                 </TableCell>
               </TableRow>

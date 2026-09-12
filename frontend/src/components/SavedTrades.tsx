@@ -48,6 +48,8 @@ export function SavedTradesPage() {
 
   return (
     <Section eyebrow="Account" title="Saved trades" lede="The trades you kept, with what the site recommended at the time. Chain conditions move, so reopen one to score it again.">
+      <Rabbit pose="coin" size={64} className="mb-3" />
+
       <p className="mb-4 text-[0.75rem]">
         <Link to="/#analyzer" className="text-ink-dim underline decoration-line-bright underline-offset-2 hover:text-ink">
           ← Back to the risk engine
@@ -58,7 +60,7 @@ export function SavedTradesPage() {
         <Skeleton className="h-40 bg-line/60" />
       ) : !account ? (
         <Panel className="p-6 text-center">
-          <Rabbit pose="hop" size={34} className="mx-auto mb-3" />
+          <Rabbit pose="wave" size={72} className="mx-auto mb-3" />
           <p className="mb-3 text-sm text-ink-dim">Sign in to see the trades you saved.</p>
           <Button onClick={() => setSignInOpen(true)} className="h-8 rounded-sm px-4 text-[0.75rem]">
             Sign in
@@ -73,7 +75,7 @@ export function SavedTradesPage() {
         <Skeleton className="h-40 bg-line/60" />
       ) : rows.length === 0 ? (
         <Panel className="p-6 text-center">
-          <Rabbit pose="sleep" size={34} className="mx-auto mb-3" />
+          <Rabbit pose="sleep" size={72} className="mx-auto mb-3" />
           <p className="text-sm text-ink-dim">
             Nothing saved yet. Analyse a trade and press <span className="text-ink">Save trade</span>.
           </p>

@@ -18,6 +18,7 @@ import {
 } from '@/lib/auth'
 import type { Account } from '@/lib/auth'
 import { Link } from '@/lib/router'
+import { Rabbit } from './Rabbit'
 import { cn } from '@/lib/utils'
 
 type Mode = 'signin' | 'register'
@@ -123,6 +124,7 @@ export function AuthDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
+          <Rabbit pose="wave" size={56} className="mb-1" />
           <DialogTitle>{mode === 'signin' ? 'Sign in' : 'Create an account'}</DialogTitle>
           <DialogDescription>
             {mode === 'signin'

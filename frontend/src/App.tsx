@@ -118,7 +118,7 @@ function Header({ sources, path }: { sources: Methodology['sources'] | null; pat
         <Link to="/" className="flex items-center gap-2.5">
           <SandwichMark />
           <span className="text-[0.8125rem] font-semibold tracking-[0.04em] uppercase">Sandwich Radar</span>
-          <Rabbit pose="hop" size={14} title="Hoppy keeps watch" />
+          <Rabbit pose="idle" size={22} title="Hoppy keeps watch" />
         </Link>
 
         <nav className="ml-4 hidden gap-1 md:flex">
@@ -249,7 +249,7 @@ function Hero() {
             >
               <Link to="/live">See live chain data</Link>
             </Button>
-            <Rabbit pose="eat" size={56} className="ml-1 self-center" title="Somebody is eating your slippage" />
+            <Rabbit pose="eat" size={96} className="ml-1 self-center" title="Somebody is eating your slippage" />
           </div>
 
           <dl className="mt-6 grid max-w-lg grid-cols-3 gap-4 border-t border-line pt-4">
@@ -264,6 +264,13 @@ function Hero() {
               </div>
             ))}
           </dl>
+
+          <div className="mt-5 flex items-end gap-4">
+            <Rabbit pose="heart" size={64} title="Set a tolerance a bot cannot use" />
+            <Rabbit pose="coin" size={56} title="Keep what is yours" />
+            <Rabbit pose="question" size={52} title="How much is your slippage worth to a bot?" />
+            <Rabbit pose="hop" size={48} />
+          </div>
         </div>
 
         <div>
@@ -337,7 +344,10 @@ function Footer() {
               <ul className="space-y-1.5 text-ink-faint">
                 <li>Solana mainnet — Helius / public RPC</li>
               </ul>
-              <Rabbit pose="hop" size={24} className="mt-3" />
+              <div className="mt-3 flex items-center gap-3">
+                <Rabbit pose="idle" size={48} />
+                <Rabbit pose="wave" size={40} />
+              </div>
             </div>
           </div>
         </div>

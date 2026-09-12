@@ -487,7 +487,7 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
             {band} risk
             <Rabbit
               pose={band === 'minimal' || band === 'low' ? 'sleep' : 'alert'}
-              size={14}
+              size={30}
               title={band === 'minimal' || band === 'low' ? 'Nothing worth a bot\u2019s time' : 'Bots want this trade'}
             />
           </div>
@@ -524,6 +524,7 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
             size="lg"
             sub="per trade, expected"
           />
+          {saving > 0.5 && <Rabbit pose="sparkle" size={40} className="mt-2 self-start" />}
           <Button
             onClick={() => onApply(sweet_spot.slippage_bps)}
             variant="outline"
@@ -552,7 +553,7 @@ function HotPools({
   return (
     <Panel className="mb-4 p-3">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Rabbit pose="alert" size={16} />
+        <Rabbit pose="alert" size={28} />
         <span className="eyebrow">Most attacked pools right now</span>
         <span className="text-[0.625rem] text-ink-faint">
           share of trades caught inside a sandwich, measured over the last 7 days

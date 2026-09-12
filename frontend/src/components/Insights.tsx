@@ -18,6 +18,7 @@ import { Badge, Bar, LiveDot, Panel, Section, Skeleton, Stat } from './primitive
 import { Separator } from '@/components/ui/separator'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Link } from '@/lib/router'
+import { Rabbit } from './Rabbit'
 import { cn } from '@/lib/utils'
 
 /** Corpus-level view: where sandwiches actually land. */
@@ -427,7 +428,10 @@ export function ModelCard() {
       </div>
 
       <Panel className="mt-4 border-warn/40 p-4">
-        <div className="eyebrow mb-3 text-warn">Known limitations</div>
+        <div className="mb-3 flex items-center gap-2">
+          <Rabbit pose="question" size={30} />
+          <span className="eyebrow text-warn">Known limitations</span>
+        </div>
         <ul className="grid gap-2.5 text-xs leading-relaxed text-ink-dim md:grid-cols-2">
           <li>
             {live ? (
