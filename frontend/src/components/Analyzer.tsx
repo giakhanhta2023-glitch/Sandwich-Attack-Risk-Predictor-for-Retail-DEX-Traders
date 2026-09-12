@@ -21,6 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils'
 import { Link } from '@/lib/router'
 import { AuthDialog } from './Auth'
+import { Rabbit } from './Rabbit'
 import { saveTrade, useAccount } from '@/lib/auth'
 
 const SLIPPAGE_PRESETS = [10, 30, 50, 100, 300, 500]
@@ -99,6 +100,16 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
       title="Price your next swap before you sign it"
       lede="Pick a pool and a size. The model scores sandwich probability from live execution conditions, then solves for the slippage tolerance that minimises what the trade is expected to cost you."
     >
+      <HotPools
+        pools={livePools}
+        selected={poolId}
+        onPick={(p) => {
+          setPoolId(p.pool_id)
+          // open at a size that pool actually sees, not the last one typed
+          setNotional(Math.max(100, Math.round((p.measured?.avg_trade_usd ?? 100) * 5)))
+        }}
+      />
+
       <div className="grid gap-4 lg:grid-cols-[minmax(270px,300px)_1fr]">
         {/* ---------------- controls ---------------- */}
         <Panel className="h-fit p-3 lg:sticky lg:top-14">
@@ -472,7 +483,14 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
             {(risk.p_attack * 100).toFixed(1)}
             <span className="text-lg text-ink-faint">%</span>
           </div>
-          <div className={`eyebrow mt-1.5 risk-${band}`}>{band} risk</div>
+          <div className={`eyebrow mt-1.5 flex items-center gap-1.5 risk-${band}`}>
+            {band} risk
+            <Rabbit
+              pose={band === 'minimal' || band === 'low' ? 'sleep' : 'alert'}
+              size={14}
+              title={band === 'minimal' || band === 'low' ? 'Nothing worth a bot\u2019s time' : 'Bots want this trade'}
+            />
+          </div>
           <p className="mt-2.5 text-[0.6875rem] leading-relaxed text-ink-dim">
             {economics.attack_is_profitable
               ? `If a bot reaches this trade it attacks: it nets ${usd(economics.attacker_profit_usd)} at your tolerance, and you lose ${usd(economics.victim_loss_usd)}.`
@@ -515,6 +533,48 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
           </Button>
           <SaveTrade result={result} />
         </div>
+      </div>
+    </Panel>
+  )
+}
+
+/** The real pools bots are working hardest right now. One click prices a trade in one. */
+function HotPools({
+  pools,
+  selected,
+  onPick,
+}: {
+  pools: Pool[]
+  selected: string
+  onPick: (pool: Pool) => void
+}) {
+  if (!pools.length) return null
+  return (
+    <Panel className="mb-4 p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <Rabbit pose="alert" size={16} />
+        <span className="eyebrow">Most attacked pools right now</span>
+        <span className="text-[0.625rem] text-ink-faint">
+          share of trades caught inside a sandwich, measured over the last 7 days
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {pools.map((p) => (
+          <button
+            key={p.pool_id}
+            type="button"
+            onClick={() => onPick(p)}
+            className={cn(
+              'num rounded-sm border px-2 py-1 text-[0.6875rem] transition-colors',
+              p.pool_id === selected
+                ? 'border-hot/60 bg-hot/10 text-ink'
+                : 'border-line text-ink-dim hover:border-line-bright hover:text-ink',
+            )}
+          >
+            {p.symbol} <span className="text-hot">{pct(p.measured?.victim_rate ?? 0, 0)}</span>
+            <span className="text-ink-faint"> · {compactUsd(p.tvl_usd)}</span>
+          </button>
+        ))}
       </div>
     </Panel>
   )

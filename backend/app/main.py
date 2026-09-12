@@ -247,8 +247,9 @@ _LOSS_BANDS = ((0.5, "minimal"), (3.0, "low"), (10.0, "elevated"), (30.0, "high"
 
 
 # How many swaps' worth of weight the model's estimate carries against a real
-# pool's own measured rate.
-LIVE_PRIOR_SWAPS = 100
+# pool's own measured rate. Pools differ enormously -- from a tenth of a percent
+# to nearly every trade -- so the average is a weak prior and gets little say.
+LIVE_PRIOR_SWAPS = 25
 
 
 def _shift_log_odds(level: float, p: float, ref: float) -> float:

@@ -17,6 +17,7 @@ import {
 } from '@/lib/live'
 import type { Health, IngestRun, LivePool, LiveSandwich, LiveSummary } from '@/lib/live'
 import { cn } from '@/lib/utils'
+import { Rabbit } from './Rabbit'
 
 const REFRESH_MS = 15_000
 
@@ -159,6 +160,11 @@ function StatusLine({
       <span className="flex items-center gap-2">
         <span className={cn('inline-block size-2', HEALTH_DOT[health])} />
         <span className={cn('eyebrow !text-[0.6875rem]', HEALTH_TEXT[health])}>{HEALTH_LABEL[health]}</span>
+        <Rabbit
+          pose={health === 'live' ? 'run' : 'sleep'}
+          size={18}
+          title={health === 'live' ? 'Scanning mainnet' : 'Waiting for the next scan'}
+        />
       </span>
       <span className="text-ink-dim">
         Last good scan <span className="num text-ink">{ageLabel(summary?.last_success_at, now)}</span>
@@ -353,6 +359,7 @@ function RecentSandwiches({ events, now }: { events: LiveSandwich[]; now: number
             {events.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={7} className="py-6 text-center text-[0.75rem] text-ink-faint">
+                  <Rabbit pose="sleep" size={30} className="mx-auto mb-2" />
                   No sandwiches in the blocks scanned so far.
                 </TableCell>
               </TableRow>

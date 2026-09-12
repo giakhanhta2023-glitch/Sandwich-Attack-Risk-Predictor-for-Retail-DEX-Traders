@@ -8,6 +8,7 @@ import { deleteSavedTrade, listSavedTrades, useAccount } from '@/lib/auth'
 import type { SavedTrade } from '@/lib/auth'
 import { Link, navigate } from '@/lib/router'
 import { cn } from '@/lib/utils'
+import { Rabbit } from './Rabbit'
 
 /** Trades a signed-in trader kept, newest first. Only ever their own: the
  *  database filters by the session, not this page. */
@@ -57,6 +58,7 @@ export function SavedTradesPage() {
         <Skeleton className="h-40 bg-line/60" />
       ) : !account ? (
         <Panel className="p-6 text-center">
+          <Rabbit pose="hop" size={34} className="mx-auto mb-3" />
           <p className="mb-3 text-sm text-ink-dim">Sign in to see the trades you saved.</p>
           <Button onClick={() => setSignInOpen(true)} className="h-8 rounded-sm px-4 text-[0.75rem]">
             Sign in
@@ -71,6 +73,7 @@ export function SavedTradesPage() {
         <Skeleton className="h-40 bg-line/60" />
       ) : rows.length === 0 ? (
         <Panel className="p-6 text-center">
+          <Rabbit pose="sleep" size={34} className="mx-auto mb-3" />
           <p className="text-sm text-ink-dim">
             Nothing saved yet. Analyse a trade and press <span className="text-ink">Save trade</span>.
           </p>

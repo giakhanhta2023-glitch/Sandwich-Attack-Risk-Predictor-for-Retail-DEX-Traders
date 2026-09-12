@@ -127,8 +127,11 @@ def get_pool(pool_id: str) -> dict[str, Any] | None:
 # --------------------------------------------------------------------------
 
 LIVE_POOL_PREFIX = "live:"
-LIVE_POOLS_SHOWN = 6
-LIVE_MIN_SWAPS = 150       # a rate on fewer swaps is noise
+LIVE_POOLS_SHOWN = 10
+# What makes a rate trustworthy is the victims behind it, not the swaps: a pool
+# where 67 of 69 trades were caught says more than a quiet pool with thousands.
+# Requiring 150 swaps hid exactly the pools bots were working hardest.
+LIVE_MIN_SWAPS = 60
 LIVE_MIN_VICTIMS = 10
 # Not measured per pool, so set from the venues these pools trade on: Raydium
 # CPMM and PumpSwap both charge 0.25%, and a young memecoin swings about half

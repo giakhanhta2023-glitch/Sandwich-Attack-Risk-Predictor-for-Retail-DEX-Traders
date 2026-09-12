@@ -261,3 +261,8 @@
   border: 3px solid var(--void);
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--line-bright); }
+
+/* Pixel sprites: the browser must not smooth these when it scales them up. */
+.pixel {
+  image-rendering: pixelated;
+}
