@@ -236,7 +236,7 @@ def market_snapshot(chain: str, hour: int) -> dict[str, Any]:
             "attack_cost_usd": round(0.9 * diurnal, 3),
             "cost_label": "Jito bundle tip",
             "gas_index": round(diurnal, 3),
-            "note": "No public mempool -- sandwiches are built inside Jito bundles",
+            "note": "No public mempool: sandwiches are built inside Jito bundles",
         }
 
     gas_gwei = 12.0 * diurnal
@@ -249,7 +249,7 @@ def market_snapshot(chain: str, hour: int) -> dict[str, Any]:
         "cost_label": "gas + builder payment",
         "gas_index": round(diurnal, 3),
         "gas_gwei": round(gas_gwei, 1),
-        "note": "Public mempool -- pending swaps are visible before inclusion",
+        "note": "Public mempool: pending swaps are visible before inclusion",
     }
 
 

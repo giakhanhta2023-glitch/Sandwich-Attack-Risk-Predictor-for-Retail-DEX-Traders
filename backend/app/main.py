@@ -722,7 +722,7 @@ def simulate(req: SimulateRequest) -> dict[str, Any]:
                 "price": round(ry2 / rx2, 6),
                 "detail": (
                     f"You receive {victim_out:,.4f} instead of {outcome.victim_out_clean:,.4f} "
-                    f"-- {outcome.victim_loss_bps:.0f}bp worse"
+                    f"({outcome.victim_loss_bps:.0f}bp worse)"
                 ),
                 "amount_usd": round(req.notional_usd, 2),
                 "loss_usd": round(outcome.victim_loss_usd, 2),

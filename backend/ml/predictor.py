@@ -129,7 +129,7 @@ class RiskPredictor:
         )
         return {
             "mode": "fallback",
-            "detail": f"closed-form economics -- {reason}",
+            "detail": f"closed-form economics: {reason}",
             "affects": (
                 "Sandwich probability is derived from attacker profitability rather than "
                 "the calibrated model. The AMM math, the sweet-spot optimiser, the split "
