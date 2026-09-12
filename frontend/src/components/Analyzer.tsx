@@ -484,17 +484,24 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
             <span className="text-lg text-ink-faint">%</span>
           </div>
           <div className={`eyebrow mt-1.5 flex items-center gap-1.5 risk-${band}`}>
-            {band} risk
+            {band} expected loss
             <Rabbit
-              pose={band === 'minimal' || band === 'low' ? 'sleep' : 'alert'}
+              pose={economics.attack_is_profitable ? 'alert' : 'sleep'}
               size={30}
-              title={band === 'minimal' || band === 'low' ? 'Nothing worth a bot\u2019s time' : 'Bots want this trade'}
+              title={economics.attack_is_profitable ? 'Bots want this trade' : 'Nothing worth a bot\u2019s time'}
             />
+          </div>
+          <div className="num mt-1 text-[0.6875rem] text-ink-dim">
+            {usd(risk.expected_loss_usd)} expected
+            {risk.expected_loss_bps != null && ` \u00b7 ${risk.expected_loss_bps.toFixed(1)}bp of your trade`}
           </div>
           <p className="mt-2.5 text-[0.6875rem] leading-relaxed text-ink-dim">
             {economics.attack_is_profitable
               ? `If a bot reaches this trade it attacks: it nets ${usd(economics.attacker_profit_usd)} at your tolerance, and you lose ${usd(economics.victim_loss_usd)}.`
               : 'At this tolerance a sandwich would lose the bot money, so bots skip it.'}
+            {economics.attack_is_profitable
+              && economics.attacker_profit_usd > economics.victim_loss_usd * 2
+              && ' It keeps more than it takes off you by riding the price your own trade moves.'}
           </p>
           <ModelSource risk={risk} chain={result.input.pool.chain} />
         </div>
