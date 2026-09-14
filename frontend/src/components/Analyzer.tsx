@@ -48,6 +48,7 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
       if (savedPool) {
         if (savedSize > 0) setNotional(savedSize)
         if (savedSlippage > 0) setSlippage(savedSlippage)
+        if (wanted.has('relay')) setPrivateRelay(wanted.get('relay') === '1')
         setPoolId(savedPool)
         return
       }
@@ -329,17 +330,18 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
 
               <Recommendations result={result} />
 
-              <Disclosure
-                className="mt-5"
-                label="Show the working"
-                hint="What the bot earns, why the model scored it this way, and the full split ladder"
+              <Link
+                to={`/research?pool=${encodeURIComponent(poolId)}&size=${notional}&slippage=${slippage}&relay=${privateRelay ? 1 : 0}#working`}
+                className="mt-5 flex items-center justify-between gap-4 rounded-sm border border-line px-4 py-3 transition-colors hover:border-cool/50 hover:bg-raised"
               >
-                <div className="grid gap-4 md:grid-cols-2">
-                  <AttackerLedger result={result} />
-                  <Drivers result={result} />
-                </div>
-                <SplitLadder result={result} />
-              </Disclosure>
+                <span>
+                  <span className="text-[0.8125rem] font-medium text-ink">Show the working</span>
+                  <span className="mt-0.5 block text-[0.6875rem] text-ink-faint">
+                    What the bot earns, why the model scored it this way, and the full split ladder
+                  </span>
+                </span>
+                <span className="text-cool">&rarr;</span>
+              </Link>
             </div>
           )}
         </div>
@@ -716,7 +718,7 @@ function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string })
 }
 
 /** The searcher's P&L on your trade -- the number that decides whether they act. */
-function AttackerLedger({ result }: { result: Analysis }) {
+export function AttackerLedger({ result }: { result: Analysis }) {
   const e = result.economics
 
   return (
@@ -814,7 +816,7 @@ function Metric({
 }
 
 /** Per-prediction attribution from the model. */
-function Drivers({ result }: { result: Analysis }) {
+export function Drivers({ result }: { result: Analysis }) {
   const drivers = result.risk.drivers
   const max = Math.max(...drivers.map((d) => Math.abs(d.delta)), 0.01)
 
@@ -878,7 +880,7 @@ function Drivers({ result }: { result: Analysis }) {
 }
 
 /** Splitting turns one attractive victim into several unprofitable ones. */
-function SplitLadder({ result }: { result: Analysis }) {
+export function SplitLadder({ result }: { result: Analysis }) {
   const plans = result.split.plans
   const best = result.split.recommended_chunks
   const maxCost = Math.max(...plans.map((p) => p.expected_cost_usd))

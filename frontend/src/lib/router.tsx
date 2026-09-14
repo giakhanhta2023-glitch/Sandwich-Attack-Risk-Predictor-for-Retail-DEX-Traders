@@ -14,7 +14,7 @@ const listeners = new Set<() => void>()
 export function navigate(to: string) {
   const url = new URL(to, window.location.origin)
   const samePath = url.pathname === window.location.pathname
-  window.history.pushState(null, '', url.pathname + url.hash)
+  window.history.pushState(null, '', url.pathname + url.search + url.hash)
   listeners.forEach((notify) => notify())
 
   if (url.hash) {

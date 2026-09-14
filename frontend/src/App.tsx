@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/api'
-import type { Methodology, Pool } from '@/api'
+import type { Pool } from '@/api'
 import { Analyzer } from '@/components/Analyzer'
 import { AttackAnatomy } from '@/components/AttackAnatomy'
 import { AccountButton, PasswordRecovery } from '@/components/Auth'
 import { Rabbit } from '@/components/Rabbit'
-import { CorpusDashboard, MethodologySection, ModelCard } from '@/components/Insights'
+import { ResearchPage } from '@/components/Research'
 import { LiveDashboard } from '@/components/LiveDashboard'
 import { PrivacyPage, TermsPage } from '@/components/Legal'
 import { SavedTradesPage } from '@/components/SavedTrades'
-import { Badge, Disclosure, LiveDot, Panel } from '@/components/primitives'
+import { Badge, Panel } from '@/components/primitives'
 import { Button } from '@/components/ui/button'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { HEALTH_LABEL, ageLabel, healthOf, liveConfigured, useLiveSummary, useNow } from '@/lib/live'
@@ -20,13 +20,12 @@ import { cn } from '@/lib/utils'
 const NAV = [
   { to: '/#analyzer', label: 'Risk engine', path: '/' },
   { to: '/live', label: 'Live data', path: '/live' },
-  { to: '/#research', label: 'Research', path: '/' },
+  { to: '/research', label: 'Research', path: '/research' },
 ]
 
 export default function App() {
   const path = usePath()
   const [pools, setPools] = useState<Pool[]>([])
-  const [sources, setSources] = useState<Methodology['sources'] | null>(null)
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
@@ -34,16 +33,12 @@ export default function App() {
       .pools()
       .then((r) => setPools(r.pools))
       .catch(() => setOffline(true))
-    api
-      .health()
-      .then((h) => setSources(h.sources))
-      .catch(() => setOffline(true))
   }, [])
 
   return (
     <TooltipProvider delayDuration={200}>
       <div className="relative flex min-h-screen flex-col">
-        <Header sources={sources} path={path} />
+        <Header path={path} />
         <main className="flex-1">
           {path === '/live' ? (
             <LiveDashboard />
@@ -51,6 +46,8 @@ export default function App() {
             <TermsPage />
           ) : path === '/privacy' ? (
             <PrivacyPage />
+          ) : path === '/research' ? (
+            <ResearchPage />
           ) : path === '/saved' ? (
             <SavedTradesPage />
           ) : (
@@ -64,45 +61,17 @@ export default function App() {
 }
 
 function Home({ pools, offline }: { pools: Pool[]; offline: boolean }) {
-  // The research sections are collapsed by default, so a link to #research has
-  // to open them as well as scroll -- otherwise the anchor lands on a closed
-  // panel and looks broken.
-  const [researchOpen, setResearchOpen] = useState(false)
-
-  useEffect(() => {
-    const openIfTargeted = () => {
-      if (window.location.hash === '#research') setResearchOpen(true)
-    }
-    openIfTargeted()
-    window.addEventListener('hashchange', openIfTargeted)
-    return () => window.removeEventListener('hashchange', openIfTargeted)
-  }, [])
-
+  // Just the tool. The evidence behind it, and the working behind any single
+  // trade, live on /research.
   return (
     <>
       <Hero />
       {offline ? <Offline /> : <Analyzer pools={pools} />}
-
-      {/* Evidence, not decision: measured attack rates, the model card and the
-          ingestion methodology. Kept one click away so the tool above stays the
-          page rather than the preamble to a research report. */}
-      <section id="research" className="relative z-10 mx-auto w-full max-w-[1600px] px-6 pb-6">
-        <Disclosure
-          label="Research &amp; methodology"
-          hint="Measured attack rates, model performance and how the data is collected"
-          open={researchOpen}
-          onOpenChange={setResearchOpen}
-        >
-          <CorpusDashboard />
-          <ModelCard />
-          <MethodologySection />
-        </Disclosure>
-      </section>
     </>
   )
 }
 
-function Header({ sources, path }: { sources: Methodology['sources'] | null; path: string }) {
+function Header({ path }: { path: string }) {
   const [scrolled, setScrolled] = useState(false)
   const summary = useLiveSummary(30_000)
 
@@ -138,30 +107,6 @@ function Header({ sources, path }: { sources: Methodology['sources'] | null; pat
 
         <div className="ml-auto flex items-center gap-2">
           <LiveIndicator summary={summary} />
-          {sources &&
-            // Ethereum is hidden until it has a live feed of its own.
-            Object.entries(sources).filter(([chain]) => chain !== 'ethereum').map(([chain, s]) => {
-              // Solana data reaches the site through the live scanner, so its badge
-              // reports the scanner's provider and health, not this server's settings.
-              const shown =
-                chain === 'solana' && summary
-                  ? {
-                      provider: summary.provider === 'helius' ? 'Helius' : 'Solana public RPC',
-                      live: healthOf(summary.last_success_at, Date.now()) === 'live',
-                      detail: `Live scanner via ${summary.provider ?? 'unknown provider'}`,
-                    }
-                  : s
-              return (
-                <span
-                  key={chain}
-                  className="hidden items-center gap-1.5 rounded-sm border border-line px-2 py-0.5 font-mono text-[0.625rem] text-ink-faint lg:flex"
-                  title={shown.detail}
-                >
-                  <LiveDot live={shown.live} />
-                  {shown.provider}
-                </span>
-              )
-            })}
           <AccountButton />
           <PasswordRecovery />
         </div>
@@ -252,20 +197,7 @@ function Hero() {
             <Rabbit pose="eat" size={96} className="ml-1 self-center" title="Somebody is eating your slippage" />
           </div>
 
-          <dl className="mt-6 grid max-w-lg grid-cols-3 gap-4 border-t border-line pt-4">
-            {[
-              ['Exact AMM math', 'front-run capacity'],
-              ['Real-data model', 'trained on mainnet swaps'],
-              ['Live mainnet', 'scanned every minute'],
-            ].map(([a, b]) => (
-              <div key={a}>
-                <dt className="text-[0.75rem] font-medium text-ink">{a}</dt>
-                <dd className="mt-0.5 text-[0.6875rem] text-ink-faint">{b}</dd>
-              </div>
-            ))}
-          </dl>
-
-          <div className="mt-5 flex items-end gap-4">
+          <div className="mt-6 flex items-end gap-4">
             <Rabbit pose="heart" size={64} title="Set a tolerance a bot cannot use" />
             <Rabbit pose="coin" size={56} title="Keep what is yours" />
             <Rabbit pose="question" size={52} title="How much is your slippage worth to a bot?" />
