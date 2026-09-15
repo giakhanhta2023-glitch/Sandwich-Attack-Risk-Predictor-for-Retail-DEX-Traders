@@ -8,7 +8,7 @@ import { Slider as SliderPrimitive } from "radix-ui"
  * The visible track is a 1px hairline, but the hit area must not be.
  *
  * Radix positions the thumb absolutely, so it contributes nothing to the
- * root's height -- with a 1px track the whole slider collapsed to a 1px strip
+ * root's height: with a 1px track the whole slider collapsed to a 1px strip
  * and could not be dragged. The root now carries a 20px hit area with the
  * hairline centred inside it, and the 3px thumb gets an invisible 23x26 grab
  * target via a pseudo-element.

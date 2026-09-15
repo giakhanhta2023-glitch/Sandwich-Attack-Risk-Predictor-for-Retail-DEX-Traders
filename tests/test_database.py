@@ -1,6 +1,6 @@
 """Database layer contract.
 
-The property that matters most here is not that the database works -- it is that
+The property that matters most here is not that the database works: it is that
 the application still works when the database does not. A missing or misbehaving
 Supabase connection must degrade to the local corpus rather than take down a risk
 score, so these tests pin that behaviour by forcing the client to be absent.

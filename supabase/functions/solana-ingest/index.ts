@@ -2,8 +2,8 @@
 //
 // Runs every minute on pg_cron. Each run:
 //   1. scans the two most recent complete leader windows (8 slots) on mainnet;
-//   2. reads every DEX transaction from the pools' side -- token vaults whose
-//      balances moved -- which works across AMMs, routers and bot contracts;
+//   2. reads every DEX transaction from the pools' side (token vaults whose
+//      balances moved), which works across AMMs, routers and bot contracts;
 //   3. flags a sandwich when one attacker moves a vault one way and then back
 //      by the same amount (+/-3%), another trader goes the same way in between,
 //      both legs land inside one validator's leader window, and the round trip
@@ -12,7 +12,7 @@
 //
 // A full block is ~6MB and Solana produces ~2.5 a second, so no free tier can
 // ingest every block. This is a rolling sample of the newest blocks, and every
-// run records exactly what it covered -- including why any block was missed --
+// run records exactly what it covered, including why any block was missed,
 // so the dashboard can say so.
 //
 // Uses Helius when HELIUS_API_KEY is set as a function secret, otherwise the
@@ -136,7 +136,7 @@ async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<v
 
 /**
  * Run one write, retrying a transient failure. Returns null on success, or the
- * failure labelled with which write it was -- without a label, a run that fails
+ * failure labelled with which write it was: without a label, a run that fails
  * only says "Gateway Timeout" and never says what timed out.
  */
 async function write(
@@ -220,7 +220,7 @@ function extract(
       // A pump.fun bonding curve holds its SOL as the curve account's own
       // lamports rather than in a token account, so its quote side is read
       // from the curve's lamport balance. Without this every bonding-curve
-      // trade -- where memecoin launches are fought over -- went unseen.
+      // trade, where memecoin launches are fought over, went unseen.
       if (perMint.size === 1 && onBondingCurve) {
         const [only] = perMint.values();
         const i = keys.indexOf(owner);
@@ -284,7 +284,7 @@ function detect(
         if (up(fk) === up(fi)) continue;
 
         // The two legs belong to one attacker when they share a fee payer, or
-        // -- for bots that rotate fee payers between legs -- when the position
+        // (for bots that rotate fee payers between legs) when the position
         // was bought into and sold out of the same token account.
         const backSwap = swapFor(fk, swapsByTx);
         const bySigner = fk.signer === fi.signer;

@@ -1,7 +1,7 @@
 """Sandwich detection over raw swap streams.
 
-This is the labeller. Whatever the source -- Helius for Solana, BigQuery for
-Ethereum -- swaps are normalised into `Swap` records and scanned for the
+This is the labeller. Whatever the source (Helius for Solana, BigQuery for
+Ethereum), swaps are normalised into `Swap` records and scanned for the
 front-run / victim / back-run pattern. Every confirmed sandwich becomes one
 training row, and the victim's counterfactual output is reconstructed so the
 realised loss is a measured quantity rather than an assumption.
@@ -35,7 +35,7 @@ class Swap:
 
     chain: str                 # "ethereum" | "solana"
     block: int                 # block number / slot
-    tx_index: int              # position within the block -- ordering is the whole game
+    tx_index: int              # position within the block: ordering is the whole game
     tx_hash: str
     pool_id: str
     trader: str                # EOA on Ethereum, fee payer on Solana
@@ -285,7 +285,7 @@ class PoolRisk:
 
 
 def aggregate_pool_risk(swaps: Iterable[Swap], events: Iterable[SandwichEvent]) -> dict[str, PoolRisk]:
-    """Per-pool attack rates -- the empirical prior the ML model starts from."""
+    """Per-pool attack rates: the empirical prior the ML model starts from."""
     stats: dict[str, PoolRisk] = {}
     for sw in swaps:
         st = stats.setdefault(sw.pool_id, PoolRisk(pool_id=sw.pool_id, chain=sw.chain))

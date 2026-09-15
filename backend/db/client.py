@@ -3,7 +3,7 @@
 Two clients, deliberately separated:
 
   * a **read** client using the publishable key, which is subject to row level
-    security -- it can see pools, swaps, detected sandwiches and model runs,
+    security: it can see pools, swaps, detected sandwiches and model runs,
     and nothing else;
   * a **write** client using the service role key, which bypasses RLS and is
     the only way anything gets inserted.

@@ -209,28 +209,28 @@ function Totals({ summary }: { summary: LiveSummary | null }) {
       <div className="bg-ground p-4">
         <Stat
           label="Scans · last hour"
-          value={summary ? `${summary.runs_ok_1h}/${summary.runs_1h}` : '—'}
+          value={summary ? `${summary.runs_ok_1h}/${summary.runs_1h}` : '…'}
           sub="succeeded / started, one a minute"
         />
       </div>
       <div className="bg-ground p-4">
         <Stat
           label="Blocks read · 24h"
-          value={summary ? summary.blocks_24h.toLocaleString() : '—'}
+          value={summary ? summary.blocks_24h.toLocaleString() : '…'}
           sub="newest blocks, sampled each scan"
         />
       </div>
       <div className="bg-ground p-4">
         <Stat
           label="Pool swaps seen · 24h"
-          value={summary ? summary.swaps_24h.toLocaleString() : '—'}
+          value={summary ? summary.swaps_24h.toLocaleString() : '…'}
           sub="across every Solana DEX"
         />
       </div>
       <div className="bg-ground p-4">
         <Stat
           label="Sandwiches · 24h"
-          value={summary ? summary.sandwiches_24h.toLocaleString() : '—'}
+          value={summary ? summary.sandwiches_24h.toLocaleString() : '…'}
           sub={rate != null ? `${pct(rate, 3)} of swaps seen` : 'none measured yet'}
           tone={summary && summary.sandwiches_24h > 0 ? 'hot' : 'neutral'}
         />
@@ -395,7 +395,7 @@ function RecentSandwiches({ events, now }: { events: LiveSandwich[]; now: number
                     )}
                   </TableCell>
                   <TableCell className="num text-warn">
-                    {e.victim_loss_bps_lb != null ? `${e.victim_loss_bps_lb.toFixed(1)}bp` : '—'}
+                    {e.victim_loss_bps_lb != null ? `${e.victim_loss_bps_lb.toFixed(1)}bp` : 'n/a'}
                   </TableCell>
                   <TableCell className="num space-x-2 text-right text-[0.6875rem]">
                     <TxLink sig={e.frontrun_tx} label="front" />
@@ -484,7 +484,7 @@ function Coverage({ provider }: { provider: string | null }) {
       </div>
       <div className="grid gap-x-8 gap-y-2 text-[0.75rem] leading-relaxed text-ink-dim md:grid-cols-2">
         <p>
-          Each scan reads the two most recent complete leader windows — 8 slots, about 3 seconds of chain time — and
+          Each scan reads the two most recent complete leader windows (8 slots, about 3 seconds of chain time) and
           runs once a minute. That is roughly 5% of all blocks, sampled evenly through the day, so the counts are real
           measurements of a sample rather than a census.
         </p>

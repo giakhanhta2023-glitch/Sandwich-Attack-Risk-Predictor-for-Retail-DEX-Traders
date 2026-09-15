@@ -68,7 +68,7 @@ def frontrun_capacity(v: float, r_in: float, r_out: float, s: float, gamma: floa
     The positive root is the attacker's budget: push the price exactly to the
     victim's tolerance and not one wei further. This is the quantity a real
     searcher solves for, and it is why slippage tolerance *is* the attack
-    surface -- a wider tolerance hands the searcher a bigger budget.
+    surface: a wider tolerance hands the searcher a bigger budget.
     """
     if s <= 0 or v <= 0:
         return 0.0
@@ -98,7 +98,7 @@ class SandwichOutcome:
     frontrun_size_usd: float
     attacker_revenue_usd: float   # gross, before execution costs
     attacker_cost_usd: float      # gas + priority fee / bundle tip
-    attacker_profit_usd: float    # net -- the searcher's decision variable
+    attacker_profit_usd: float    # net: the searcher's decision variable
     victim_out_clean: float       # output with no attacker present
     victim_out_attacked: float
     victim_loss_usd: float
@@ -201,7 +201,7 @@ def unconstrained_frontrun(
     fee drag on the round trip, then falls once the attacker is trading against
     their own impact. Ternary search finds that interior peak.
 
-    The key structural fact -- and the reason this is a separate function -- is
+    The key structural fact, and the reason this is a separate function, is
     that this optimum does not depend on the victim's slippage tolerance at all.
     Tolerance only ever *caps* it. So the expensive search runs once per pool and
     trade size, and every point on a slippage sweep is then a single closed-form
@@ -214,7 +214,7 @@ def unconstrained_frontrun(
     # searcher could plausibly operate in: push `a` far enough and the attacker
     # buys out the pool and sells it back, recovering the victim's whole input,
     # so profit turns upward again at the extreme. That branch is unreachable in
-    # practice -- it needs a victim tolerance near 100% and pool-sized capital --
+    # practice (it needs a victim tolerance near 100% and pool-sized capital),
     # but a ternary search over an unbounded interval will happily walk into it.
     # Capping at the capacity implied by a 50% tolerance keeps the search inside
     # the unimodal region and still bounds every tolerance the grid sweeps.
@@ -318,7 +318,7 @@ def critical_slippage(
 
 
 # --------------------------------------------------------------------------
-# reserve helpers -- the UI speaks USD, the math speaks reserves
+# reserve helpers: the UI speaks USD, the math speaks reserves
 # --------------------------------------------------------------------------
 
 def reserves_from_tvl(tvl_usd: float, price_in_usd: float, price_out_usd: float) -> tuple[float, float]:

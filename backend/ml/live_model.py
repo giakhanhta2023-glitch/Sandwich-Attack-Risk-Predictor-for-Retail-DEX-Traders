@@ -2,7 +2,7 @@
 
 `train_live` fits a logistic regression on swaps sampled from Solana mainnet and
 exports its coefficients to JSON. Inference is then a dot product and a sigmoid,
-which needs nothing beyond the standard library -- so the model trained on real
+which needs nothing beyond the standard library, so the model trained on real
 flow runs even on the serverless deployment, where scikit-learn does not fit.
 
 `featurize` is shared with the trainer, so the features computed at training
@@ -204,7 +204,7 @@ def card() -> dict[str, Any] | None:
 
 
 def info() -> dict[str, Any] | None:
-    """What the model was trained on -- shown next to anything it predicts."""
+    """What the model was trained on: shown next to anything it predicts."""
     model = load()
     if model is None:
         return None

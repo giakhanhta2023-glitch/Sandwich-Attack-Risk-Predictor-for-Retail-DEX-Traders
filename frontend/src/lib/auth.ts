@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react'
  * A password is sent straight to Supabase over TLS and hashed there. It never
  * reaches this code, the Python API, or any table this project owns. What
  * comes back is a session, kept in the browser so a refresh does not sign you
- * out, and sent with every read and write below -- so row level security in
+ * out, and sent with every read and write below, so row level security in
  * the database, not the UI, decides what a signed-in trader can touch: their
  * own rows, nothing else.
  */

@@ -53,7 +53,7 @@ def build_frame(n_blocks: int = 4000, seed: int = 7) -> pd.DataFrame:
 def _add_pool_prior(train: pd.DataFrame, test: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     """Per-pool historical attack rate, fit on train and applied to both.
 
-    This is the leakiest feature in the set if handled carelessly -- computing it
+    This is the leakiest feature in the set if handled carelessly: computing it
     over the full frame would let each row see its own label. It is computed on
     the training split only, smoothed toward the global rate so thin pools do
     not get overconfident priors, and unseen pools fall back to the global mean.
@@ -72,7 +72,7 @@ def _add_pool_prior(train: pd.DataFrame, test: pd.DataFrame) -> tuple[pd.DataFra
 
 
 def _reliability_curve(y_true: np.ndarray, y_prob: np.ndarray, bins: int = 10) -> list[dict[str, float]]:
-    """Predicted vs observed frequency -- the honest picture of calibration."""
+    """Predicted vs observed frequency: the honest picture of calibration."""
     edges = np.linspace(0.0, 1.0, bins + 1)
     out: list[dict[str, float]] = []
     for lo, hi in zip(edges[:-1], edges[1:]):
@@ -93,7 +93,7 @@ def train(n_blocks: int = 4000, seed: int = 7, verbose: bool = True) -> dict[str
     started = time.time()
     frame = build_frame(n_blocks=n_blocks, seed=seed)
 
-    # chronological split -- no future blocks in the training set
+    # chronological split: no future blocks in the training set
     cutoff = frame["block"].quantile(TRAIN_FRACTION)
     train_df = frame[frame["block"] <= cutoff]
     test_df = frame[frame["block"] > cutoff]
@@ -168,7 +168,7 @@ def train(n_blocks: int = 4000, seed: int = 7, verbose: bool = True) -> dict[str
     dump(reg, ARTIFACT_DIR / "loss_regressor.joblib")
 
     # Medians for the predictor's ablation attribution. Precomputed here so the
-    # serving path never opens the corpus -- that is what lets pandas/pyarrow
+    # serving path never opens the corpus: that is what lets pandas/pyarrow
     # stay out of the deployed function.
     feature_medians = {c: float(frame[c].median()) for c in FEATURE_COLUMNS}
 

@@ -3,7 +3,7 @@
 A slippage tolerance is a trade-off between two failure modes that pull in
 opposite directions:
 
-  * set it too high and you hand a searcher a budget -- the sandwich takes
+  * set it too high and you hand a searcher a budget: the sandwich takes
     almost exactly the tolerance you granted;
   * set it too low and the trade reverts on ordinary volatility, costing gas
     and forcing you to re-quote into a price that has already moved away.
@@ -22,7 +22,10 @@ that a searcher is actually watching this pool under current conditions.
 from __future__ import annotations
 
 import math
+import random
+import zlib
 from dataclasses import dataclass, field, asdict
+from statistics import NormalDist
 from typing import Any
 
 from .amm import (
@@ -64,7 +67,7 @@ class TradeContext:
     inclusion_blocks: float = 2.0        # how long the intent sits exposed
     volatility_24h: float = 0.04         # daily sigma of returns (0.04 == 4%/day)
     # behavioural
-    bot_activity: float = 0.55           # P(a searcher is watching) -- from the ML model
+    bot_activity: float = 0.55           # P(a searcher is watching), from the ML model
     private_relay: bool = False          # Flashbots Protect / Jito bundle
     risk_aversion: float = 0.35          # penalty weight on execution variance when splitting
     chase_factor: float = 0.5            # fraction of an adverse move eaten before giving up
@@ -102,7 +105,7 @@ def take_rate(ctx: TradeContext, s: float, a_unc: float | None = None) -> float:
     Zero when the best sandwich the tolerance allows would lose money: nobody
     runs a bundle they expect to lose on. Above break-even it rises smoothly to
     one, and the width stands for uncertainty in *our* estimate of the
-    searcher's costs -- tip auctions, competing searchers, inventory limits --
+    searcher's costs (tip auctions, competing searchers, inventory limits),
     not for searcher irrationality. (A logistic centred on break-even put a swap
     with no room for any front-run at a 50% take rate.)
     """
@@ -142,16 +145,22 @@ def revert_probability(ctx: TradeContext, s: float) -> float:
 
 
 def expected_attempts(ctx: TradeContext, s: float) -> float:
-    """Expected submissions before one lands, capped at `max_attempts`.
+    """Expected submissions when a trader gives up after `max_attempts`.
 
     A tight tolerance behaves like a limit order that cancels itself: it fails,
-    you resubmit, and you pay gas every time. The geometric mean 1/(1 - p_fail)
-    is the pushback that stops the optimiser from driving slippage to zero.
+    you resubmit, and you pay gas every time. That cost is the pushback that
+    stops the optimiser from driving slippage to zero.
+
+    Submission k happens only if the k-1 before it all failed, so the count is
+    1 + p + p^2 + ... up to the cap: (1 - p^n) / (1 - p). Capping the uncapped
+    mean 1/(1 - p) instead overstated it whenever a revert was likely, which
+    the simulated trades exposed by averaging below the curve.
     """
     p_fail = revert_probability(ctx, s)
-    if p_fail >= 0.999:
-        return ctx.max_attempts
-    return min(ctx.max_attempts, 1.0 / (1.0 - p_fail))
+    n = ctx.max_attempts
+    if p_fail >= 1.0 - 1e-12:
+        return n
+    return (1.0 - p_fail ** n) / (1.0 - p_fail)
 
 
 def reprice_cost_usd(ctx: TradeContext, s: float) -> float:
@@ -159,8 +168,8 @@ def reprice_cost_usd(ctx: TradeContext, s: float) -> float:
 
     Conditional on an adverse move larger than `s`, its expected size is the
     truncated-normal mean sigma * phi(z) / (1 - Phi(z)). A trader does not eat
-    all of that -- part of the time the price comes back before they give up and
-    cross at market -- so it is scaled by `chase_factor`. That coefficient is
+    all of that (part of the time the price comes back before they give up and
+    cross at market), so it is scaled by `chase_factor`. That coefficient is
     the one calibrated (rather than derived) number in the revert branch, and it
     is surfaced in the API response so the assumption stays visible.
     """
@@ -173,6 +182,67 @@ def reprice_cost_usd(ctx: TradeContext, s: float) -> float:
         return ctx.notional_usd * s * ctx.chase_factor
     expected_move = sigma * _norm_pdf(z) / tail
     return ctx.notional_usd * expected_move * ctx.chase_factor
+
+
+def _chase_draw(ctx: TradeContext, s: float, sigma: float, rng: random.Random) -> float:
+    """One adverse move past the tolerance, costed the way `reprice_cost_usd`
+    costs its average: a draw from the normal tail beyond `s`, scaled by the
+    share of the move a trader eats."""
+    if sigma <= 0:
+        return 0.0
+    below = _norm_cdf(s / sigma)
+    if 1.0 - below < 1e-9:
+        return ctx.notional_usd * s * ctx.chase_factor
+    u = min(below + (1.0 - below) * rng.random(), 1.0 - 1e-16)
+    move = sigma * NormalDist().inv_cdf(u)
+    return ctx.notional_usd * move * ctx.chase_factor
+
+
+def simulate_trades(ctx: TradeContext, curve: list["CostPoint"], per_point: int = 3) -> list[dict[str, Any]]:
+    """Individual trades, drawn from the same branches the expected cost weights.
+
+    The cost curve is an average, so it is smooth however uneven the outcomes
+    under it are. Each sample is one trade at one tolerance: it is sandwiched
+    and loses what the bot takes, or it fills first time, or it reverts, chases
+    the move that broke the tolerance and retries until it fills or gives up.
+    These are the same events with the same probabilities `cost_curve`
+    integrates, so the samples average back onto the line; plotted, they show
+    the spread the line is an average of.
+
+    Seeded from the trade and the market but not the tolerance the user picked,
+    so the dots hold still while the slider moves.
+    """
+    sigma = ctx.sigma_over(ctx.exposure_seconds)
+    key = f"{ctx.notional_usd:.2f}|{ctx.pool_tvl_usd:.2f}|{ctx.bot_activity:.6f}|{sigma:.9g}|{ctx.private_relay}"
+    rng = random.Random(zlib.crc32(key.encode()))
+    penalty = ctx.notional_usd * ctx.unfilled_penalty_bps / 10_000.0
+    attempts = max(1, int(round(ctx.max_attempts)))
+
+    samples: list[dict[str, Any]] = []
+    for point in curve:
+        s = point.slippage_bps / 10_000.0
+        for _ in range(per_point):
+            if rng.random() < point.p_attack:
+                cost, outcome = point.attack_loss_usd + ctx.gas_cost_usd, "sandwiched"
+            else:
+                cost, outcome = 0.0, "filled"
+                for attempt in range(attempts):
+                    cost += ctx.gas_cost_usd
+                    if rng.random() >= point.p_revert:
+                        break
+                    outcome = "reverted"
+                    if attempt == 0:
+                        # the model charges one chase, on the revert that starts it
+                        cost += _chase_draw(ctx, s, sigma, rng)
+                else:
+                    cost += penalty
+                    outcome = "unfilled"
+            samples.append({
+                "slippage_bps": round(point.slippage_bps, 2),
+                "cost_usd": round(cost, 4),
+                "outcome": outcome,
+            })
+    return samples
 
 
 def baseline_impact_usd(ctx: TradeContext) -> float:
@@ -206,7 +276,7 @@ def _default_grid() -> list[float]:
 
 
 def cost_curve(ctx: TradeContext, grid: list[float] | None = None) -> list[CostPoint]:
-    """Expected cost across the full tolerance range -- this is the chart."""
+    """Expected cost across the full tolerance range: this is the chart."""
     if grid is None:
         grid = _default_grid()
 
@@ -226,8 +296,8 @@ def cost_curve(ctx: TradeContext, grid: list[float] | None = None) -> list[CostP
         p_atk = attack_probability(ctx, s, a_unc=a_unc)
         p_rev = revert_probability(ctx, s)
 
-        # A sandwiched trade does not revert -- the searcher is careful to leave
-        # it inside tolerance -- so the two branches are treated as exclusive.
+        # A sandwiched trade does not revert (the searcher is careful to leave
+        # it inside tolerance), so the two branches are treated as exclusive.
         # Gas is paid either way, but only the un-attacked branch retries.
         gas_term = p_atk * ctx.gas_cost_usd + (1.0 - p_atk) * ctx.gas_cost_usd * expected_attempts(ctx, s)
         chase = p_rev * reprice_cost_usd(ctx, s)
@@ -266,10 +336,11 @@ class SweetSpot:
     worst_case_loss_usd: float         # if the sandwich lands anyway
     savings_vs_default_usd: float
     default_slippage_bps: float
-    baseline_impact_usd: float         # LP fee + price impact -- unavoidable
+    baseline_impact_usd: float         # LP fee + price impact: unavoidable
     controllable_cost_usd: float       # the part better execution can remove
     at_grid_floor: bool                # optimum pinned to the tightest setting searched
     curve: list[dict[str, float]] = field(default_factory=list)
+    samples: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -324,6 +395,7 @@ def find_sweet_spot(ctx: TradeContext, default_slippage_bps: float = 50.0) -> Sw
             }
             for p in curve
         ],
+        samples=simulate_trades(ctx, curve),
     )
 
 
@@ -350,7 +422,7 @@ def evaluate_split(ctx: TradeContext, n: int, recovery: float = 0.7) -> SplitPla
 
     Splitting works because the attacker's budget is superlinear in trade size:
     a chunk a fifth the size is worth far less than a fifth of the sandwich, and
-    often falls under the bundle bid entirely. It is not free -- you pay gas per
+    often falls under the bundle bid entirely. It is not free: you pay gas per
     chunk and hold market risk for the duration.
 
     `recovery` is how much of each chunk's price impact arbitrage restores

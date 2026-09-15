@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
  * The hero explainer: one block, three transactions, and the price path your
  * swap actually gets filled on.
  *
- * The point it has to land is that nothing here is a hack -- the ordering is
+ * The point it has to land is that nothing here is a hack: the ordering is
  * legitimate, the searcher just pays to be first and last. So the animation
  * walks the block in execution order and shows the price moving under the
  * victim before their swap ever runs.
@@ -24,33 +24,35 @@ import { Button } from '@/components/ui/button'
 const STEPS = [
   {
     actor: 'market',
-    tag: 'pending',
+    tag: 'you submit',
     title: 'You submit a swap',
-    body: 'Your transaction sits in the public mempool with a slippage tolerance attached. Anyone can read both.',
+    body: 'Your transaction goes out with a slippage tolerance attached. Bots watching the flow of transactions to validators can read both before it lands.',
     price: 1.0,
   },
   {
     actor: 'attacker',
-    tag: 'tx #1',
-    title: 'Searcher front-runs',
-    body: 'A bot pays a higher priority fee to land immediately before you, buying the same token and pushing the price up.',
+    tag: 'bot buys',
+    title: 'A bot buys first',
+    body: 'A bot pays for a bundle that lands immediately before you, buying the same token and pushing the price up.',
     price: 1.031,
   },
   {
     actor: 'victim',
-    tag: 'tx #2',
-    title: 'Your swap fills — worse',
+    tag: 'your swap',
+    title: 'Your swap fills at a worse price',
     body: 'You still execute, because the bot moved the price to just inside the tolerance you allowed. You receive less.',
     price: 1.048,
   },
   {
     actor: 'attacker',
-    tag: 'tx #3',
-    title: 'Searcher back-runs',
+    tag: 'bot sells',
+    title: 'The bot sells right after',
     body: 'The bot immediately sells what it just bought into the price your trade created. The difference is their profit.',
     price: 1.014,
   },
 ] as const
+
+const WHO = { market: 'you', victim: 'you', attacker: 'bot' } as const
 
 export function AttackAnatomy() {
   const [step, setStep] = useState(0)
@@ -63,8 +65,8 @@ export function AttackAnatomy() {
   }, [step, playing])
 
   // Recharts draws a Line across every row, so the reveal is done by nulling
-  // the price of steps that have not happened yet rather than slicing the array
-  // -- that keeps the x-axis stable instead of rescaling on each tick.
+  // the price of steps that have not happened yet rather than slicing the array:
+  // that keeps the x-axis stable instead of rescaling on each tick.
   const data = STEPS.map((s, i) => ({
     idx: i,
     tag: s.tag,
@@ -88,16 +90,19 @@ export function AttackAnatomy() {
         </Button>
       </div>
 
-      <div className="h-[150px] px-1 pt-3">
+      <div className="h-[164px] px-1 pt-3">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 14, right: 16, bottom: 6, left: 30 }}>
+          <LineChart data={data} margin={{ top: 14, right: 8, bottom: 6, left: 8 }}>
             <XAxis
               dataKey="tag"
+              // every step keeps its name; Recharts would otherwise drop alternate ones
+              interval={0}
+              padding={{ left: 70, right: 30 }}
               tickLine={false}
               axisLine={false}
               tick={{ fontSize: 9, fontFamily: 'var(--font-mono)', fill: 'var(--ink-faint)' }}
             />
-            <YAxis domain={[0.996, 1.06]} hide />
+            <YAxis domain={[0.982, 1.06]} hide />
 
             {/* the price you were quoted, before anyone touched the block */}
             <ReferenceLine
@@ -105,8 +110,8 @@ export function AttackAnatomy() {
               stroke="var(--line-bright)"
               strokeDasharray="3 4"
               label={{
-                value: 'quoted',
-                position: 'left',
+                value: 'your quote',
+                position: 'insideTopLeft',
                 style: { fill: 'var(--ink-faint)', fontSize: 9, fontFamily: 'var(--font-mono)' },
               }}
             />
@@ -114,8 +119,8 @@ export function AttackAnatomy() {
             {/* the gap the searcher opened between your quote and your fill */}
             {step >= 2 && (
               <ReferenceArea
-                x1="tx #1"
-                x2="tx #2"
+                x1="bot buys"
+                x2="your swap"
                 y1={1.0}
                 y2={1.048}
                 fill="var(--hot)"
@@ -152,7 +157,7 @@ export function AttackAnatomy() {
                   : 'text-ink-faint'
             }`}
           >
-            {active.actor}
+            {WHO[active.actor]}
           </span>
           <h3 className="text-[0.8125rem] font-semibold text-ink">{active.title}</h3>
         </div>

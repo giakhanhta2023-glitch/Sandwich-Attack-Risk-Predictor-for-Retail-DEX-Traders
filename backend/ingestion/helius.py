@@ -2,10 +2,10 @@
 
 Two paths, both normalising into `detection.sandwich.Swap`:
 
-  * `fetch_pool_swaps` -- signatures for a pool account, then the Enhanced
+  * `fetch_pool_swaps`: signatures for a pool account, then the Enhanced
     Transactions API, which returns Helius' parsed `tokenTransfers` and swap
     events so we do not have to decode Raydium/Orca instruction data ourselves.
-  * `fetch_slot_swaps` -- a whole slot at a time via `getBlock`, which is what
+  * `fetch_slot_swaps`: a whole slot at a time via `getBlock`, which is what
     you want for detection, because sandwich detection needs *every* swap in a
     slot in execution order, not just the ones touching one pool.
 
@@ -26,7 +26,7 @@ from ..detection.sandwich import Swap
 
 ENHANCED_TX_URL = "https://api.helius.xyz/v0/transactions"
 
-# the AMM programs worth watching -- these route the overwhelming majority of
+# the AMM programs worth watching: these route the overwhelming majority of
 # retail Solana swap flow
 DEX_PROGRAMS = {
     "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8": "Raydium AMM v4",
@@ -98,7 +98,7 @@ class HeliusClient:
     # ---------------- enhanced (parsed) transactions ----------------
 
     def parsed_transactions(self, signatures: list[str]) -> list[dict[str, Any]]:
-        """Helius Enhanced Transactions -- decoded swaps, 100 signatures a call."""
+        """Helius Enhanced Transactions: decoded swaps, 100 signatures a call."""
         if not self.api_key:
             raise RuntimeError("Enhanced Transactions API requires HELIUS_API_KEY")
         out: list[dict[str, Any]] = []

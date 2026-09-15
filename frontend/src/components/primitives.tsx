@@ -191,7 +191,7 @@ export function Disclosure({
       </CollapsibleTrigger>
       {/* Height is deliberately not animated. Hand-rolled collapsible-down/up
           keyframes collided with the identically named ones tw-animate-css
-          ships, and the open panel stayed pinned at height:0 -- expanded, in
+          ships, and the open panel stayed pinned at height:0: expanded, in
           the DOM, and invisible. Radix hides the closed state on its own, so
           the content keeps its natural height and only opacity is animated,
           which cannot collapse layout if it goes wrong. */}

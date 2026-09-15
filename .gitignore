@@ -8,7 +8,7 @@ dist/
 .env
 .env.local
 *.log
-# Trained model binaries stay out of the repo -- they are ~1.4MB and the slim
+# Trained model binaries stay out of the repo: they are ~1.4MB and the slim
 # serverless deployment cannot load them anyway (scikit-learn does not fit).
 backend/artifacts/*.joblib
 # ...but the small JSON the serving path actually reads is tracked, so a

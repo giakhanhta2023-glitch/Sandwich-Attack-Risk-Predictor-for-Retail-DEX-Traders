@@ -18,7 +18,7 @@ A sandwich attack has three transactions in one block:
 | 2 | You | Your swap fills at the worsened price |
 | 3 | Searcher | Sells what it just bought into the price you created (**back-run**) |
 
-The searcher's front-run is sized so your trade still lands — just barely inside the
+The searcher's front-run is sized so your trade still lands, just barely inside the
 tolerance you allowed. Your tolerance is therefore not a safety limit. It is the
 attacker's budget.
 
@@ -28,13 +28,13 @@ attacker's budget.
    the newest blocks, finds every DEX swap from the pools' side, and records detected
    sandwiches plus a training sample. Anyone can watch it work at
    [`/live`](https://sandwich-attack-risk-predictor-for.vercel.app/live).
-2. **Detects and labels** sandwiches by matching front-run/victim/back-run triples —
+2. **Detects and labels** sandwiches by matching front-run/victim/back-run triples:
    one wallet on both legs, the back-run unwinding the front-run, a victim in between,
    all inside one validator's leader window, and a round trip that made money.
 3. **Predicts risk** for Solana pools with a model trained on real mainnet swaps and
    retrained every six hours. Ethereum pools are hidden until a live Ethereum feed is
    connected, because without one they could only show a formula estimate.
-4. **Solves for the sweet spot** — the slippage tolerance minimising expected cost —
+4. **Solves for the sweet spot**, the slippage tolerance minimising expected cost,
    and for whether splitting the order into chunks beats executing it whole.
 
 ---
@@ -43,7 +43,7 @@ attacker's budget.
 
 Everything is built on the constant-product invariant `x·y = k`, with `γ = 1 − fee`.
 
-### Front-run capacity — how much room your tolerance leaves
+### Front-run capacity: how much room your tolerance leaves
 
 Your transaction carries a `minAmountOut` of `(1 − s)·out₀`. The largest front-run `a`
 that still lets your trade land solves `out_victim(a) / out₀ = 1 − s`, which reduces to
@@ -53,7 +53,7 @@ a quadratic in `a`. With `u = 1 − s`:
 u·γ·a² + u·(Rx·(1+γ) + γ²·v)·a − s·Rx·(Rx + γ·v) = 0
 ```
 
-The positive root is the searcher's budget. This is the load-bearing equation — it is
+The positive root is the searcher's budget. This is the load-bearing equation. It is
 literally what a searcher solves for, and it is why a wider tolerance is strictly worse.
 
 ### The break-even law
@@ -68,7 +68,7 @@ v / R  >  2 · fee
 Your trade must move the price further than the attacker's round-trip fee costs them.
 This has a sharp consequence: **in a deep pool at a 30bp fee tier, retail-sized trades
 are mathematically un-sandwichable**, no matter how careless the slippage setting. Risk
-concentrates in thin pools, volatile pairs, and low fee tiers — a $12k swap that is
+concentrates in thin pools, volatile pairs, and low fee tiers: a $12k swap that is
 unattackable in an 8.5M 30bp pool becomes profitable to attack in the same pool at 5bp.
 
 ### The objective
@@ -85,7 +85,7 @@ granted; too tight and the trade reverts on ordinary volatility, burning gas and
 you to re-quote into a price that has moved. The recommendation is the argmin.
 
 `p_atk` factorises as `presence × take_rate(profit(s))`. The ML model supplies the part
-arithmetic cannot know — whether a searcher is watching this pool right now — and the
+arithmetic cannot know (whether a searcher is watching this pool right now), and the
 closed form supplies everything that follows deterministically. The API inverts the
 model's probability through the take-rate curve to recover latent presence, then holds
 it fixed while sweeping slippage, so the risk score and the recommendation stay
@@ -133,8 +133,8 @@ rates, and so are the attacker's own legs.
 so weighted statistics describe the real population rather than the sample.
 
 **Training.** `python -m backend.ml.train_live` fits a weighted logistic regression on
-seven observable features — trade size, pool depth, size relative to depth, direction,
-time of day, quote asset — scores it on a chronological holdout, and exports the
+seven observable features (trade size, pool depth, size relative to depth, direction,
+time of day, quote asset), scores it on a chronological holdout, and exports the
 coefficients as JSON. Serving is plain arithmetic, so it runs on Vercel without
 scikit-learn. A scheduled GitHub Action retrains every six hours and commits the new
 artifact once there is enough data (300 rows and 30 victims). The model never
@@ -171,7 +171,7 @@ way between the bot's two legs, so a pool a bot works hard can see most of its t
 caught: at the time of writing the hottest had 113 of 217.
 
 **Helius.** Without a key the function uses the public mainnet RPC, which rate-limits
-and drops blocks. With one, every scan is complete. Set it as an Edge Function secret —
+and drops blocks. With one, every scan is complete. Set it as an Edge Function secret,
 never in the repo:
 
 ```bash
@@ -192,7 +192,7 @@ enforces that rather than leaving it to discipline:
   Hierarchy comes from the border plus the fill step between `#000000` and
   `#0c0c0e`.
 - **Two functional hues.** Emerald `#10b981` for safe/optimal, crimson
-  `#ef4444` for risk/loss, carried on the numeral or a 2px inset rule — never
+  `#ef4444` for risk/loss, carried on the numeral or a 2px inset rule, never
   as a tint behind a figure, which only makes the figure harder to read.
   A chart's second series is neutral grey so red always and only means MEV.
 - **Every figure is monospaced** and tabular, with slashed zero, so digits align
@@ -216,19 +216,19 @@ output and `api/index.py` as a Python function wrapping the FastAPI app.
 
 The deployed function does **not** carry scikit-learn. The full stack is ~370MB
 unpacked against a 250MB function limit, so the serving path was restructured to
-need none of it — feature medians and corpus aggregates are precomputed at
+need none of it: feature medians and corpus aggregates are precomputed at
 training time into small JSON files. Sandwich probability in production comes
 from the mainnet model, which is served as plain arithmetic, so every pool the
-site offers is scored from real swaps. Everything else — the AMM math, the sweet-spot
-optimiser, the split ladder, the corpus — is identical to a local run.
+site offers is scored from real swaps. Everything else (the AMM math, the sweet-spot
+optimiser, the split ladder, the corpus) is identical to a local run.
 
 To run the trained model in production you need a host that fits a ~210MB
 Python runtime (Fly, Render, Railway, a container on Cloud Run). Point the
 frontend at it with `VITE_API_TARGET`; nothing else changes, because the
 predictor loads the artifacts whenever scikit-learn is importable.
 
-The Supabase URL and publishable key are public by design — RLS limits them to
-`SELECT` on research tables — so they ship in `backend/public.env` and
+The Supabase URL and publishable key are public by design (RLS limits them to
+`SELECT` on research tables), so they ship in `backend/public.env` and
 `frontend/.env.production`, and every deployment reads live data with no
 configuration. Real environment variables and `.env` override them. Secrets (the
 service-role key, the Helius key) never go in the repo.
@@ -269,12 +269,12 @@ Schema lives in Supabase Postgres (eleven tables, five views):
 
 | Table | Holds |
 |---|---|
-| `pools` | pool registry — TVL, fee tier, volatility; refreshable without a redeploy |
+| `pools` | pool registry: TVL, fee tier, volatility; refreshable without a redeploy |
 | `swaps` | normalised swap stream with execution ordering preserved |
 | `sandwich_events` | every sandwich detected on mainnet, with Solscan-linkable signatures |
 | `swap_samples` | the live training sample: every victim, 2% of everything else, weighted |
 | `pool_activity_daily` | swaps and sandwiches per pool per day, from fully read windows |
-| `ingest_runs` | one row per scan — slots covered, blocks read, lag, and why any were missed |
+| `ingest_runs` | one row per scan: slots covered, blocks read, lag, and why any were missed |
 | `ingestion_cursors` | per-source watermarks so pulls resume instead of rescanning |
 | `analyses` | every risk query and what was recommended |
 | `model_runs` | training metrics over time, so drift is visible |
@@ -290,7 +290,7 @@ carries the time it was taken as `measured_through`, and the API already cached 
 five minutes, so nothing shows a number it would not have shown before. Retention runs daily: analyses 180 days, runs 14, samples 30, pool counts 90;
 detections are kept.
 
-**Security.** RLS is on for every table, and grants are separate from policies —
+**Security.** RLS is on for every table, and grants are separate from policies:
 `anon` gets `SELECT` on the public research tables and live views and nothing else. The two account
 tables go further: signed-out visitors hold no privileges on them at all, and every policy on them is
 keyed to `auth.uid()`, so a trader reads and deletes only their own rows. There
@@ -339,7 +339,7 @@ backend/
   core/optimizer.py     expected-cost objective, sweet spot, split ladder
   core/features.py      feature construction shared by training and serving
   core/pools.py         pool registry and per-chain execution environment
-  detection/sandwich.py the labeller — front-run/victim/back-run matching
+  detection/sandwich.py the labeller (front-run/victim/back-run matching)
   ingestion/helius.py   Solana: slot scans and Enhanced Transactions
   ingestion/bigquery_eth.py  Ethereum: decode + label in SQL
   ingestion/synthetic.py     offline simulator for running without credentials
@@ -365,16 +365,16 @@ tests/                  75 tests over the invariants, detector, optimiser, live 
 | Frontend | React 19 + TypeScript, Vite 8 |
 | UI | Tailwind CSS v4 + **shadcn/ui** (Radix primitives, CVA variants) |
 | Design | Quantitative terminal: flat surfaces, 1px neutral-800 borders, 2px radius, Inter + JetBrains Mono, emerald/crimson only |
-| Charts | **Recharts** — cost curve, attack path, corpus bars, calibration scatter, feature importance |
+| Charts | **Recharts**: cost curve, attack path, corpus bars, calibration scatter, feature importance |
 | Backend | FastAPI + Uvicorn, Pydantic v2 |
-| ML | scikit-learn — `HistGradientBoosting` classifier (isotonic-calibrated) + regressor; weighted logistic regression on live mainnet samples |
+| ML | scikit-learn: `HistGradientBoosting` classifier (isotonic-calibrated) + regressor; weighted logistic regression on live mainnet samples |
 | Inference | In-process on the backend; models loaded once into a singleton |
-| Database | **Supabase Postgres** — pools, swaps, detected sandwiches, telemetry, model runs |
+| Database | **Supabase Postgres**: pools, swaps, detected sandwiches, telemetry, model runs |
 | Storage | `joblib` model artifacts on disk; corpus in Postgres, Parquet as the offline fallback |
 | Chain data | **Solana mainnet every minute** via a Supabase Edge Function (Helius with a key, public RPC without); Ethereum via BigQuery `crypto_ethereum` |
 
 The models run server-side rather than in the browser because six of the twenty features
-are computed by the AMM solver in `core/amm.py` — scoring in the client would mean
+are computed by the AMM solver in `core/amm.py`; scoring in the client would mean
 shipping both the math engine and a converted model just to reproduce one probability.
 
 ---
@@ -386,7 +386,7 @@ shipping both the math engine and a converted model just to reproduce one probab
   mainnet data trains the separate live model, which replaces it for Solana once proven.
 - **Live coverage is a sample, and the label is a lower bound.** Roughly 5% of blocks are
   read, an attack is only seen when both legs fall inside a scanned leader window, and a
-  victim's loss is measured as the attacker's profit — a floor on what the victim lost.
+  victim's loss is measured as the attacker's profit, a floor on what the victim lost.
 - **Detector accuracy is measured on clean input.** Precision and recall of 1.00 against
   simulator ground truth validate the implementation, not robustness to aggregator hops,
   multi-hop routes, or partially-filled bundles.

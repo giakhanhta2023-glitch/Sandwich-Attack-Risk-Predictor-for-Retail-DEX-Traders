@@ -16,7 +16,7 @@ ARTIFACT_DIR = BASE_DIR / "artifacts"
 DATA_DIR = BASE_DIR / "data"
 # Creating these at import is a convenience for local development. A serverless
 # filesystem is read-only outside /tmp, and `backend/data` is not shipped, so the
-# attempt raises there -- which would crash the function before it serves a
+# attempt raises there, which would crash the function before it serves a
 # single request. Nothing on the serving path writes to either directory, so
 # failing to create them is not an error worth propagating.
 for _directory in (ARTIFACT_DIR, DATA_DIR):

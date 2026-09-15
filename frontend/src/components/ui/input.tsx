@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-/** Flat, 1px border, 2px radius -- the same surface as the numeric entries. */
+/** Flat, 1px border, 2px radius: the same surface as the numeric entries. */
 function Input({ className, type, ...props }: React.ComponentProps<"input">) {
   return (
     <input

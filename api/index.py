@@ -13,7 +13,7 @@ in runtime logs that are not always reachable; here the failure is captured and
 returned over HTTP. The handler uses only the standard library, so it still
 answers when the failure is a missing dependency.
 
-The deployed dependency set omits scikit-learn, numpy and pandas -- together
+The deployed dependency set omits scikit-learn, numpy and pandas: together
 ~370MB against a 250MB function limit. The API detects their absence and serves
 the closed-form economics, reporting `serving.mode == "fallback"` so the UI
 states which predictor is live.

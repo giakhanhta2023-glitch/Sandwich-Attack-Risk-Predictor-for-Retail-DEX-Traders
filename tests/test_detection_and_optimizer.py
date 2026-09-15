@@ -13,6 +13,7 @@ from backend.core.optimizer import (
     find_sweet_spot,
     optimal_split,
     revert_probability,
+    simulate_trades,
 )
 from backend.detection.sandwich import Swap, aggregate_pool_risk, detect_sandwiches
 from backend.ingestion.synthetic import generate_swap_stream
@@ -30,7 +31,7 @@ def test_detector_recovers_known_sandwiches(stream):
 
     This exercises the same code path that labels live Helius and BigQuery
     data. It proves the pattern matching and loss reconstruction are correct on
-    clean input -- it does not prove robustness to real-world noise such as
+    clean input: it does not prove robustness to real-world noise such as
     aggregator hops or multi-pool routes.
     """
     swaps, truth = stream
@@ -93,6 +94,31 @@ def test_sweet_spot_is_the_curve_minimum(ctx):
     curve = cost_curve(ctx)
     best = min(p.expected_cost_usd for p in curve)
     assert spot.expected_cost_usd == pytest.approx(best, rel=1e-9)
+
+
+def test_simulated_trades_average_back_onto_the_curve(ctx):
+    """The dots on the chart are individual trades, the line is their average.
+
+    If the two ever drift apart, the chart is showing outcomes the model does
+    not stand behind, so this holds them together across the tolerance range,
+    including the tight end where retries dominate the cost.
+    """
+    from statistics import fmean
+
+    from backend.core.optimizer import baseline_impact_usd
+
+    base = baseline_impact_usd(ctx)
+    curve = cost_curve(ctx)
+    for target_bps in (2, 10, 50, 300, 1500):
+        point = min(curve, key=lambda p: abs(p.slippage_bps - target_bps))
+        mean = fmean(t["cost_usd"] for t in simulate_trades(ctx, [point], per_point=40_000))
+        assert mean == pytest.approx(point.expected_cost_usd - base, rel=0.03, abs=0.05)
+
+
+def test_simulated_trades_hold_still_when_only_the_tolerance_changes(ctx):
+    """Seeded from the trade, not the slider, so the chart does not reshuffle while dragging."""
+    curve = cost_curve(ctx)
+    assert simulate_trades(ctx, curve) == simulate_trades(ctx, curve)
 
 
 def test_attack_probability_rises_with_tolerance(ctx):

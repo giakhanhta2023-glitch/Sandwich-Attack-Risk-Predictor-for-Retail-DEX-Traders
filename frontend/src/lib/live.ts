@@ -139,7 +139,7 @@ export function healthOf(lastSuccessIso: string | null | undefined, now: number)
 }
 
 export function ageLabel(iso: string | null | undefined, now: number): string {
-  if (!iso) return '—'
+  if (!iso) return 'never'
   const s = Math.max(0, Math.round((now - Date.parse(iso)) / 1000))
   if (s < 60) return `${s}s ago`
   if (s < 3600) return `${Math.floor(s / 60)}m ago`

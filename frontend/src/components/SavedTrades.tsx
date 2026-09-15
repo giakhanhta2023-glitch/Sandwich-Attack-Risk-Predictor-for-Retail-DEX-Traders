@@ -116,10 +116,10 @@ export function SavedTradesPage() {
                       )}
                     </TableCell>
                     <TableCell className="num text-cool">
-                      {t.recommended_slippage_bps != null ? bps(t.recommended_slippage_bps) : '—'}
+                      {t.recommended_slippage_bps != null ? bps(t.recommended_slippage_bps) : 'n/a'}
                     </TableCell>
                     <TableCell className="num text-cool">
-                      {t.expected_saving_usd != null ? usd(t.expected_saving_usd) : '—'}
+                      {t.expected_saving_usd != null ? usd(t.expected_saving_usd) : 'n/a'}
                     </TableCell>
                     <TableCell className="space-x-3 text-right text-[0.6875rem] whitespace-nowrap">
                       <button

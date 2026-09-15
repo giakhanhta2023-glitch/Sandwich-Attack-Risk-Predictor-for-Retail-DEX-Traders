@@ -2,7 +2,7 @@
 #
 # The solana-ingest edge function samples mainnet every minute into Supabase.
 # Every six hours this job reads that sample (public data, read with the
-# publishable key -- no secrets needed), refits the model, and commits the new
+# publishable key, no secrets needed), refits the model, and commits the new
 # backend/artifacts/live_model.json. The commit triggers a Vercel redeploy, so
 # production serves the refreshed model without anyone touching it.
 #

@@ -59,7 +59,7 @@ export function CorpusDashboard() {
         ) : (
           <>
             Attack rates across the simulated training corpus: sandwiches concentrate where a wide tolerance meets a
-            thin pool. This switches to real measurements once the live scanner has collected enough swaps —{' '}
+            thin pool. This switches to real measurements once the live scanner has collected enough swaps:{' '}
             <Link to="/live" className="text-ink underline underline-offset-2">
               see what it has found so far
             </Link>
@@ -155,7 +155,7 @@ export function CorpusDashboard() {
                   </TableCell>
                   <TableCell className="num text-ink-dim">{compactUsd(p.tvl_usd)}</TableCell>
                   <TableCell className="num text-warn">
-                    {p.median_loss_bps ? bps(p.median_loss_bps) : '—'}
+                    {p.median_loss_bps ? bps(p.median_loss_bps) : 'n/a'}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2.5">
@@ -445,7 +445,7 @@ export function ModelCard() {
               <>
                 <strong className="text-ink">Training data is simulated.</strong> Without a Helius key the corpus
                 comes from the built-in simulator, not the chain. Metrics describe how well the model recovers a
-                known generating process — they are not out-of-sample chain performance.
+                known generating process. They are not out-of-sample chain performance.
               </>
             )}
           </li>
@@ -456,8 +456,8 @@ export function ModelCard() {
           </li>
           <li>
             <strong className="text-ink">PR AUC is capped by design.</strong> The label carries irreducible
-            noise — whether a searcher is watching and wins the auction is a coin flip the features cannot
-            observe — so no model reaches 1.0 on it.
+            noise (whether a searcher is watching and wins the auction is a coin flip the features cannot
+            observe), so no model reaches 1.0 on it.
           </li>
           <li>
             <strong className="text-ink">Single-hop, single-pool.</strong> Multi-hop routes and aggregator
@@ -599,7 +599,7 @@ export function MethodologySection() {
       className="!py-8"
       eyebrow="Methodology"
       title="Where the numbers come from"
-      lede="A live mainnet scanner, one detector, one optimiser. Every figure on this page is either measured from real Solana swaps or derived in closed form from the constant-product curve — nothing is a fudge factor except the two calibration constants named below."
+      lede="A live mainnet scanner, one detector, one optimiser. Every figure on this page is either measured from real Solana swaps or derived in closed form from the constant-product curve. Nothing is a fudge factor except the two calibration constants named below."
     >
       <div className="grid gap-4 lg:grid-cols-3">
         {Object.entries(meth.sources)

@@ -6,8 +6,8 @@ training pipeline computes a feature slightly differently from the API.
 
 The physics-derived features (`attacker_profit_usd`, `frontrun_capacity_usd`,
 `profit_over_cost`) matter most. They fold the closed-form AMM economics into
-the model, so the learner spends its capacity on the part it cannot derive --
-whether a searcher is actually present and willing -- rather than rediscovering
+the model, so the learner spends its capacity on the part it cannot derive
+(whether a searcher is actually present and willing) rather than rediscovering
 the constant-product curve from data.
 """
 

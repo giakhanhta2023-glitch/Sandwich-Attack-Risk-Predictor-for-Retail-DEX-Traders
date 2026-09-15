@@ -27,7 +27,7 @@ from ..app.config import ARTIFACT_DIR
 
 # The scientific stack is optional at serving time.
 #
-# scikit-learn pulls in scipy and numpy -- around 200MB unpacked, which does not
+# scikit-learn pulls in scipy and numpy: around 200MB unpacked, which does not
 # fit a serverless function alongside everything else. Where it is present the
 # calibrated model scores; where it is absent the wrapper falls back to the
 # closed-form economics, and `serving_mode()` reports which is live so the UI can
@@ -43,7 +43,7 @@ except ImportError:  # pragma: no cover
     load = None
 from ..core.features import FEATURE_COLUMNS, build_features, to_vector
 
-# features worth explaining to a user -- the rest are context, not levers
+# features worth explaining to a user: the rest are context, not levers
 EXPLAINABLE = [
     "slippage_bps",
     "log_notional_usd",
@@ -242,7 +242,7 @@ _predictor: RiskPredictor | None = None
 
 
 def get_predictor() -> RiskPredictor:
-    """Process-wide singleton -- loading joblib artifacts per request is wasteful."""
+    """Process-wide singleton: loading joblib artifacts per request is wasteful."""
     global _predictor
     if _predictor is None:
         _predictor = RiskPredictor()

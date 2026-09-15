@@ -6,7 +6,7 @@ transaction index inside the block. Sandwich detection is entirely an ordering
 problem, so `transaction_index` is the column that makes this work.
 
 The queries below decode swap amounts directly in SQL rather than pulling raw
-logs into Python -- the dataset is large enough that filtering and decoding
+logs into Python: the dataset is large enough that filtering and decoding
 server-side is the difference between a few hundred MB scanned and a few TB.
 
 Cost control matters here: every query sets a byte ceiling and a block range,
@@ -59,7 +59,7 @@ ORDER BY s.block_number, s.transaction_index
 """
 
 # Pools that saw at least `min_swaps` in the window and had multiple traders in
-# the same block -- the only blocks where a sandwich can exist. Running this
+# the same block: the only blocks where a sandwich can exist. Running this
 # first keeps the expensive decode query pointed at a small pool set.
 CANDIDATE_POOLS_QUERY = """
 SELECT
@@ -271,7 +271,7 @@ def _row_to_swap(row: Any, decimals0: int = 18, decimals6: int = 6) -> Swap:
 
 
 def describe_queries() -> list[dict[str, str]]:
-    """Surface the SQL in the UI -- the methodology should be inspectable."""
+    """Surface the SQL in the UI: the methodology should be inspectable."""
     return [
         {
             "name": "candidate_pools",

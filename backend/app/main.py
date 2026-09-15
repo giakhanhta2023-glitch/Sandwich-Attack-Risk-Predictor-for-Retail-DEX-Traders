@@ -1,8 +1,8 @@
 """HTTP API.
 
 The interesting endpoint is `/api/analyze`, which fuses the two halves of the
-system. The ML model estimates the one thing arithmetic cannot know -- whether a
-searcher is watching this pool right now -- and the closed-form economics supply
+system. The ML model estimates the one thing arithmetic cannot know (whether a
+searcher is watching this pool right now) and the closed-form economics supply
 everything that follows deterministically from that. Concretely: the model's
 probability at the user's *current* slippage is inverted through the take-rate
 curve to recover the latent searcher presence, and that presence is then held
@@ -140,7 +140,7 @@ def _serving_mode(predictor: Any) -> dict[str, Any]:
     """Which model is answering, in the words of whichever one it is.
 
     On Vercel the scientific stack is absent, so the scikit-learn predictor never
-    loads -- but the mainnet-trained model does, as plain arithmetic. Reporting
+    loads, but the mainnet-trained model does, as plain arithmetic. Reporting
     only the predictor made a live deployment call itself a fallback.
     """
     live = live_model.info()
@@ -274,8 +274,8 @@ _LOSS_BANDS = ((0.5, "minimal"), (3.0, "low"), (10.0, "elevated"), (30.0, "high"
 
 
 # How many swaps' worth of weight the model's estimate carries against a real
-# pool's own measured rate. Pools differ enormously -- from a tenth of a percent
-# to nearly every trade -- so the average is a weak prior and gets little say.
+# pool's own measured rate. Pools differ enormously, from a tenth of a percent
+# to nearly every trade, so the average is a weak prior and gets little say.
 LIVE_PRIOR_SWAPS = 25
 
 
@@ -306,8 +306,8 @@ def _pool_quote(pool: dict[str, Any]) -> str:
 def _live_market_estimate(pool: dict[str, Any], req: AnalyzeRequest, hour: int) -> dict[str, Any] | None:
     """How often bots reach trades like this one on Solana mainnet.
 
-    The live model sees size, pool depth, direction, hour and quote asset -- all
-    observable on-chain -- but not the trader's slippage tolerance, which never
+    The live model sees size, pool depth, direction, hour and quote asset (all
+    observable on-chain) but not the trader's slippage tolerance, which never
     appears in balance changes. So it answers only how often bots reach trades
     like this; whether a given trade is worth attacking at the user's tolerance
     is left to the AMM arithmetic in `analyze`.
@@ -405,7 +405,7 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
     # Two questions decide whether a trade gets sandwiched, answered separately.
     # How often bots reach trades like this is measured on mainnet by the live
     # model. Whether this one is worth attacking at the user's tolerance is exact
-    # AMM arithmetic -- the one thing chain data cannot show, because a trader's
+    # AMM arithmetic: the one thing chain data cannot show, because a trader's
     # tolerance never appears in balance changes. The chance shown is their
     # product: a tolerance too tight to pay takes it to zero, and a wide one on a
     # big trade keeps it at the reach rate.
@@ -533,6 +533,7 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
                 current_cost["expected_cost_usd"] - spot.expected_cost_usd, 2
             ),
             "curve": spot.curve,
+            "samples": spot.samples,
         },
         "split": {
             "recommended_chunks": best_split.chunks,

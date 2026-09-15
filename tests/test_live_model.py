@@ -61,7 +61,7 @@ def isolated(monkeypatch):
 
 @pytest.fixture
 def serve(tmp_path, monkeypatch):
-    """Serve a given artifact -- or none at all -- for one test."""
+    """Serve a given artifact, or none at all, for one test."""
 
     def _serve(model):
         path = tmp_path / "live_model.json"

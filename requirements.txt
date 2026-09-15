@@ -2,7 +2,7 @@
 #
 # Deliberately excludes scikit-learn, numpy, scipy, pandas and pyarrow: together
 # they are ~370MB unpacked against a 250MB function limit. The serving path was
-# restructured so none of them are needed -- feature medians and corpus
+# restructured so none of them are needed: feature medians and corpus
 # aggregates are precomputed at training time into small JSON files, and the
 # predictor falls back to closed-form economics when the model cannot be loaded.
 #

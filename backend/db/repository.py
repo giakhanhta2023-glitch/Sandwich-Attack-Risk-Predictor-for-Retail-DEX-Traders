@@ -4,7 +4,7 @@ Every function here degrades rather than raises when the database is absent, so
 callers do not have to branch on configuration. Reads return `None` or an empty
 result and the caller falls back to the local corpus; telemetry writes are
 fire-and-forget and never take down a request that would otherwise have
-succeeded -- a risk score is worth more to the user than a log line is to us.
+succeeded: a risk score is worth more to the user than a log line is to us.
 
 Bulk inserts go through `upsert` with the tables' natural keys, so re-ingesting
 a block range is idempotent instead of duplicating the corpus.
@@ -194,7 +194,7 @@ def update_cursor(
 # ---------------------------------------------------------------- telemetry
 
 def log_analysis(payload: dict[str, Any]) -> None:
-    """Record one risk query. Never raises -- telemetry must not break a request."""
+    """Record one risk query. Never raises: telemetry must not break a request."""
     client = write_client()
     if client is None:
         return

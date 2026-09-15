@@ -6,11 +6,12 @@ import {
   Line,
   ReferenceLine,
   ResponsiveContainer,
+  Scatter,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import type { CurvePoint } from '@/api'
+import type { CurvePoint, TradeSample } from '@/api'
 import { usd, bps } from '@/api'
 
 /**
@@ -28,10 +29,17 @@ import { usd, bps } from '@/api'
  * Unavoidable price impact is excluded from the plot. It is a constant in `s`,
  * so including it would only flatten the shape the chart exists to show; it is
  * reported separately underneath instead.
+ *
+ * The line is an average, and an average is smooth however uneven the trades
+ * under it are. The dots are those trades: each is one simulated swap at one
+ * tolerance, drawn from the same probabilities the line averages, so they
+ * scatter the way real outcomes do and still average back onto it. Nothing is
+ * added to the line itself; the roughness shown is the model's own.
  */
 
 interface Props {
   curve: CurvePoint[]
+  samples: TradeSample[]
   baselineUsd: number
   currentBps: number
   recommendedBps: number
@@ -40,7 +48,7 @@ interface Props {
 
 const TICKS = [1, 5, 10, 25, 50, 100, 300, 1000, 2000]
 
-export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, criticalBps }: Props) {
+export function CostCurve({ curve, samples, baselineUsd, currentBps, recommendedBps, criticalBps }: Props) {
   const data = useMemo(
     () =>
       curve.map((p) => {
@@ -105,14 +113,14 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
             <Tooltip
               cursor={{ stroke: 'var(--ink)', strokeOpacity: 0.35 }}
               content={({ active, payload }) => {
-                const row = payload?.[0]?.payload as Row | undefined
+                const row = payload?.find((entry) => 'total' in (entry.payload ?? {}))?.payload as Row | undefined
                 return active && row ? <CostTooltipView row={row} /> : null
               }}
             />
 
             {/* execution risk sits under MEV risk; the stack top is the total */}
             <Area
-              type="monotone"
+              type="linear"
               dataKey="execution"
               stackId="cost"
               stroke="var(--info)"
@@ -122,7 +130,7 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
               isAnimationActive={false}
             />
             <Area
-              type="monotone"
+              type="linear"
               dataKey="attack"
               stackId="cost"
               stroke="var(--hot)"
@@ -132,13 +140,21 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
               isAnimationActive={false}
             />
             <Line
-              type="monotone"
+              type="linear"
               dataKey="total"
               stroke="var(--ink)"
               strokeWidth={1.5}
               dot={false}
               activeDot={{ r: 3.5, fill: 'var(--ink)' }}
               isAnimationActive={false}
+            />
+
+            <Scatter
+              data={samples}
+              dataKey="cost_usd"
+              isAnimationActive={false}
+              tooltipType="none"
+              shape={<TradeDot />}
             />
 
             {/* to the left of this the sandwich cannot pay for its own gas */}
@@ -187,12 +203,28 @@ export function CostCurve({ curve, baselineUsd, currentBps, recommendedBps, crit
           <span className="h-2 w-2 bg-info/70" /> revert, retry &amp; chase
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-px w-4 bg-ink" /> total controllable cost
+          <span className="h-px w-4 bg-ink" /> average cost
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-ink-faint" /> one simulated trade
         </span>
         <span className="ml-auto">plus {usd(baselineUsd)} unavoidable fee &amp; price impact</span>
       </div>
     </div>
   )
+}
+
+const DOT_COLOUR: Record<TradeSample['outcome'], string> = {
+  sandwiched: 'var(--hot)',
+  reverted: 'var(--info)',
+  unfilled: 'var(--info)',
+  filled: 'var(--ink-faint)',
+}
+
+/** One trade: red if a bot took it, blue if it reverted first, grey if it simply filled. */
+function TradeDot({ cx, cy, payload }: { cx?: number; cy?: number; payload?: TradeSample }) {
+  if (cx == null || cy == null || !payload) return null
+  return <circle cx={cx} cy={cy} r={1.9} fill={DOT_COLOUR[payload.outcome]} fillOpacity={0.55} />
 }
 
 /**

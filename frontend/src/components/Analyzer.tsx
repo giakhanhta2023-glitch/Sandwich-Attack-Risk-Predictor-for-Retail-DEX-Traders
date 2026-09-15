@@ -101,16 +101,6 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
       title="Price your next swap before you sign it"
       lede="Pick a pool and a size. The model scores sandwich probability from live execution conditions, then solves for the slippage tolerance that minimises what the trade is expected to cost you."
     >
-      <HotPools
-        pools={livePools}
-        selected={poolId}
-        onPick={(p) => {
-          setPoolId(p.pool_id)
-          // open at a size that pool actually sees, not the last one typed
-          setNotional(Math.max(100, Math.round((p.measured?.avg_trade_usd ?? 100) * 5)))
-        }}
-      />
-
       <div className="grid gap-4 lg:grid-cols-[minmax(270px,300px)_1fr]">
         {/* ---------------- controls ---------------- */}
         <Panel className="h-fit p-3 lg:sticky lg:top-14">
@@ -315,12 +305,13 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                 {result.sweet_spot.at_grid_floor && (
                   <p className="mb-3 border-l-2 border-l-warn bg-transparent px-3 py-1.5 text-[0.6875rem] leading-relaxed text-warn">
                     Every tolerance in range is worth attacking here, so the objective just wants the smallest
-                    one — this is a floor, not a fine-tuned number. The real levers are private routing and
+                    one. This is a floor, not a fine-tuned number. The real levers are private routing and
                     splitting the order.
                   </p>
                 )}
                 <CostCurve
                   curve={result.sweet_spot.curve}
+                  samples={result.sweet_spot.samples ?? []}
                   baselineUsd={result.sweet_spot.baseline_impact_usd}
                   currentBps={result.input.slippage_bps}
                   recommendedBps={result.sweet_spot.slippage_bps}
@@ -354,8 +345,8 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
  * Typed entry for an exact figure, sitting where the read-out used to be.
  *
  * Sliders are fine for exploring and poor for "I am trading exactly $37,500",
- * so the value itself is editable. Accepts what people actually type --
- * "25k", "$1.2m", "0.5%", "50bp" -- and clamps to the slider's range so the
+ * so the value itself is editable. Accepts what people actually type
+ * ("25k", "$1.2m", "0.5%", "50bp") and clamps to the slider's range so the
  * two controls can never disagree.
  */
 function NumericEntry({
@@ -565,48 +556,6 @@ function Verdict({ result, onApply }: { result: Analysis; onApply: (bps: number)
   )
 }
 
-/** The real pools bots are working hardest right now. One click prices a trade in one. */
-function HotPools({
-  pools,
-  selected,
-  onPick,
-}: {
-  pools: Pool[]
-  selected: string
-  onPick: (pool: Pool) => void
-}) {
-  if (!pools.length) return null
-  return (
-    <Panel className="mb-4 p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Rabbit pose="alert" size={28} />
-        <span className="eyebrow">Most attacked pools right now</span>
-        <span className="text-[0.625rem] text-ink-faint">
-          share of trades caught inside a sandwich, measured over the last 7 days
-        </span>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        {pools.map((p) => (
-          <button
-            key={p.pool_id}
-            type="button"
-            onClick={() => onPick(p)}
-            className={cn(
-              'num rounded-sm border px-2 py-1 text-[0.6875rem] transition-colors',
-              p.pool_id === selected
-                ? 'border-hot/60 bg-hot/10 text-ink'
-                : 'border-line text-ink-dim hover:border-line-bright hover:text-ink',
-            )}
-          >
-            {p.symbol} <span className="text-hot">{pct(p.measured?.victim_rate ?? 0, 0)}</span>
-            <span className="text-ink-faint"> · {compactUsd(p.tvl_usd)}</span>
-          </button>
-        ))}
-      </div>
-    </Panel>
-  )
-}
-
 /** Keep this trade against your account, so you can come back to the decision. */
 function SaveTrade({ result }: { result: Analysis }) {
   const { account } = useAccount()
@@ -658,7 +607,7 @@ function SaveTrade({ result }: { result: Analysis }) {
         ) : state === 'saving' ? (
           'Saving\u2026'
         ) : state === 'error' ? (
-          'Could not save — try again'
+          'Could not save. Try again'
         ) : account ? (
           'Save trade'
         ) : (
@@ -717,7 +666,7 @@ function ModelSource({ risk, chain }: { risk: Analysis['risk']; chain: string })
   )
 }
 
-/** The searcher's P&L on your trade -- the number that decides whether they act. */
+/** The searcher's P&L on your trade: the number that decides whether they act. */
 export function AttackerLedger({ result }: { result: Analysis }) {
   const e = result.economics
 
@@ -832,7 +781,7 @@ export function Drivers({ result }: { result: Analysis }) {
 
       {drivers.length === 0 ? (
         <p className="text-sm text-ink-faint">
-          No single input moves this prediction much — the score is close to the pool's base rate.
+          No single input moves this prediction much: the score is close to the pool's base rate.
         </p>
       ) : (
         <div className="space-y-3">

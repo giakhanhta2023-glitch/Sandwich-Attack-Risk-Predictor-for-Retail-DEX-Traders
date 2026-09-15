@@ -178,7 +178,7 @@ function Hero() {
 
           <p className="mt-3 max-w-xl text-[0.8125rem] leading-relaxed text-ink-dim">
             When you set a slippage tolerance, you publish the exact amount a searcher is allowed to take from
-            you — and they will take almost all of it. This tool scores that risk from chain data, then solves for
+            you, and they will take almost all of it. This tool scores that risk from chain data, then solves for
             the tolerance that costs you the least.
           </p>
 
@@ -274,7 +274,7 @@ function Footer() {
             <div>
               <div className="eyebrow mb-2.5">Sources</div>
               <ul className="space-y-1.5 text-ink-faint">
-                <li>Solana mainnet — Helius / public RPC</li>
+                <li>Solana mainnet via Helius or public RPC</li>
               </ul>
               <div className="mt-3 flex items-center gap-3">
                 <Rabbit pose="idle" size={48} />

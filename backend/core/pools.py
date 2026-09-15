@@ -6,8 +6,8 @@ TVL and volatility replace the static entries; without them the static specs
 stand in, and every response carries the `data_source` flag so the distinction
 is never lost on the way to the UI.
 
-`market_snapshot` supplies the execution environment -- gas, block time, what a
-searcher pays to win a slot -- which differs enough between Ethereum and Solana
+`market_snapshot` supplies the execution environment (gas, block time, what a
+searcher pays to win a slot), which differs enough between Ethereum and Solana
 that sharing one set of constants would make both wrong.
 """
 
@@ -62,7 +62,7 @@ def _registry() -> dict[str, dict[str, Any]]:
 
     When Supabase is configured the registry is whatever `pools` holds, so TVL
     and volatility can be refreshed from the chain without a redeploy. Without
-    it -- or if the fetch fails -- the static registry stands in, which is what
+    it, or if the fetch fails, the static registry stands in, which is what
     keeps a credential-free checkout working.
     """
     from ..db.repository import fetch_pools
@@ -142,9 +142,9 @@ _measured_cache: tuple[float, dict[str, dict[str, Any]]] | None = None
 
 
 def _live_pool(r: dict[str, Any], sol_usd: float) -> dict[str, Any] | None:
-    """A real pool described by what the scanner saw over the last seven days --
-    swaps, the traders caught inside sandwiches, the average trade, quote-side
-    depth -- or None when there is too little flow to quote a rate."""
+    """A real pool described by what the scanner saw over the last seven days
+    (swaps, the traders caught inside sandwiches, the average trade, quote-side
+    depth), or None when there is too little flow to quote a rate."""
     swaps = int(r.get("swaps") or 0)
     victims = min(int(r.get("victims") or 0), swaps)
     quote = r.get("quote_symbol")
@@ -258,7 +258,7 @@ def market_snapshot(chain: str, hour: int) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 # The corpus view switches from the simulator to measured chain data only once
-# there is enough of it to be less noisy than what it replaces -- roughly an hour
+# there is enough of it to be less noisy than what it replaces: roughly an hour
 # of the live ingester. The live dashboard shows real data from the first run.
 MIN_MEASURED_SWAPS = 50_000
 MIN_MEASURED_SANDWICHES = 30
@@ -297,7 +297,7 @@ def _chain_corpus_stats() -> dict[str, Any] | None:
         return None
 
     # Rank by attack rate, but only among pools with enough swaps for the rate to
-    # mean something -- one sandwich in three swaps is noise, not a finding.
+    # mean something: one sandwich in three swaps is noise, not a finding.
     ranked = sorted(
         (r for r in pools if int(r.get("swaps") or 0) >= 200),
         key=lambda r: -float(r.get("attack_rate") or 0),
@@ -426,7 +426,7 @@ def aggregate_corpus(frame: Any) -> dict[str, Any]:
 
     hit_all = frame[frame["label_sandwiched"] == 1]
 
-    # attack rate as a function of the tolerance the victim set -- the single
+    # attack rate as a function of the tolerance the victim set: the single
     # most useful chart in the whole corpus
     buckets = [(0, 25), (25, 50), (50, 100), (100, 200), (200, 300), (300, 500), (500, 1000), (1000, 6000)]
     by_slippage = []

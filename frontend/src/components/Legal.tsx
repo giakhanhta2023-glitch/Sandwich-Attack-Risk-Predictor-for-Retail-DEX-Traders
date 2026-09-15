@@ -92,12 +92,12 @@ export function PrivacyPage() {
       <Panel className="border-l-2 border-l-cool p-4 text-[0.8125rem] leading-relaxed text-ink-dim">
         <strong className="text-ink">In short:</strong> no tracking, no wallet connection, and an account only if
         you want to save trades. We never ask for private keys or seed phrases. A stored analysis holds only the trade
-        details you typed and our answer — never your IP address, wallet, or anything that identifies you.
+        details you typed and our answer, never your IP address, wallet, or anything that identifies you.
       </Panel>
 
       <Clause title="1. What happens when you analyse a trade">
         <p>
-          The details you enter — the pool, trade size, slippage tolerance and routing choice — are sent to our server
+          The details you enter (the pool, trade size, slippage tolerance and routing choice) are sent to our server
           so it can calculate the risk and the recommended settings.
         </p>
         <p>
@@ -112,7 +112,7 @@ export function PrivacyPage() {
         <p>
           An account is optional: the risk engine and the live data work without one. Creating one stores your email
           address and the username you choose. Your password is handled by our authentication provider, Supabase,
-          which stores only a hash of it — it never reaches our own code or tables, and nobody can read it back.
+          which stores only a hash of it. It never reaches our own code or tables, and nobody can read it back.
         </p>
         <p>
           Signed in, you can save trades you have analysed. A saved trade holds the pool, the size and slippage you
@@ -191,7 +191,7 @@ export function PrivacyPage() {
       <Clause title="8. Your choices">
         <p>
           Without an account we store nothing that identifies you, so we usually cannot find records that relate to
-          you. If you believe we hold data about you — for example a wallet address — <Contact /> and we will look
+          you. If you believe we hold data about you, for example a wallet address, <Contact /> and we will look
           into it.
         </p>
         <p>
@@ -256,7 +256,7 @@ export function TermsPage() {
       <Clause title="4. We never touch your funds">
         <p>
           We do not execute trades, hold funds or connect to your wallet. Never share your private keys or seed phrase
-          with anyone — we will never ask for them.
+          with anyone. We will never ask for them.
         </p>
       </Clause>
 
@@ -287,7 +287,7 @@ export function TermsPage() {
       <Clause title="8. Limitation of liability">
         <p>
           To the fullest extent the law allows, we are not liable for any loss or damage arising from your use of, or
-          reliance on, the service — including trading losses, losses to MEV or sandwich attacks, and lost profits.
+          reliance on, the service, including trading losses, losses to MEV or sandwich attacks, and lost profits.
         </p>
       </Clause>
 

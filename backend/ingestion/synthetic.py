@@ -8,8 +8,8 @@ up as chain data.
 It is not random noise either. Blocks are built from the same constant-product
 economics the rest of the system uses: a searcher attacks when the closed-form
 profit clears its bundle bid and a bot is watching that pool. The latent
-variables the model has to recover -- searcher presence, congestion, per-pool
-competition -- are hidden from the feature set, which is what makes the learned
+variables the model has to recover (searcher presence, congestion, per-pool
+competition) are hidden from the feature set, which is what makes the learned
 model do real work rather than invert a formula it was handed.
 
 Distributions are anchored to published MEV research (Flashbots' MEV-Explore,
