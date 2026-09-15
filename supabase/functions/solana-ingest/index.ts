@@ -37,6 +37,10 @@ const NEGATIVE_SAMPLE_RATE = 0.02;   // share of non-victim swaps kept for train
 const AMOUNT_MATCH = 0.03;           // back-run must unwind the front-run to within 3%
 const MAX_LEADER_SPAN = SLOTS_PER_WINDOW - 1;
 const MIN_CURVE_LAMPORTS = 10_000n;  // smallest SOL move read as a bonding-curve trade
+// Newest transaction format the parser has been checked against. v1 went live on
+// mainnet on 2026-09-15 and carries every field read below; asking for less makes
+// the RPC refuse any block containing one, which is nearly all of them.
+const MAX_TX_VERSION = 1;
 // The public RPC rate-limits by IP over a window of several seconds, so a short
 // backoff only hits the same wall again: it gets one request at a time and waits
 // long enough for that window to roll over. Every wait is bounded by the run
@@ -401,7 +405,7 @@ Deno.serve(async () => {
     await mapLimit(slots, FETCH_CONCURRENCY, async (slot) => {
       try {
         const block = await rpc<any>("getBlock", [slot, {
-          encoding: "json", maxSupportedTransactionVersion: 0,
+          encoding: "json", maxSupportedTransactionVersion: MAX_TX_VERSION,
           transactionDetails: "full", rewards: false, commitment: "confirmed",
         }], BLOCK_TRIES, deadline);
         if (!block) return miss(slot, "empty block response");
@@ -541,7 +545,8 @@ Deno.serve(async () => {
       : null;
 
     const summary = {
-      status: writeErrors.length ? "error" : missed ? "partial" : "ok",
+      // a scan that read no blocks saw nothing, so it cannot count as a success
+      status: writeErrors.length || blocksOk === 0 ? "error" : missed ? "partial" : "ok",
       finished_at: new Date().toISOString(),
       tip_slot: tip,
       first_slot: first,

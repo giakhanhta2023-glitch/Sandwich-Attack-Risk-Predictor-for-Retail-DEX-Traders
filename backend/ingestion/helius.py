@@ -83,7 +83,9 @@ class HeliusClient:
                     slot,
                     {
                         "encoding": "jsonParsed",
-                        "maxSupportedTransactionVersion": 0,
+                        # v1 transactions reached mainnet on 2026-09-15; asking for
+                        # less makes the RPC refuse any block that holds one
+                        "maxSupportedTransactionVersion": 1,
                         "transactionDetails": "full",
                         "rewards": False,
                     },

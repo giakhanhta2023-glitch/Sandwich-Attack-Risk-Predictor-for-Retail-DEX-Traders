@@ -22,10 +22,7 @@ that a searcher is actually watching this pool under current conditions.
 from __future__ import annotations
 
 import math
-import random
-import zlib
 from dataclasses import dataclass, field, asdict
-from statistics import NormalDist
 from typing import Any
 
 from .amm import (
@@ -153,8 +150,7 @@ def expected_attempts(ctx: TradeContext, s: float) -> float:
 
     Submission k happens only if the k-1 before it all failed, so the count is
     1 + p + p^2 + ... up to the cap: (1 - p^n) / (1 - p). Capping the uncapped
-    mean 1/(1 - p) instead overstated it whenever a revert was likely, which
-    the simulated trades exposed by averaging below the curve.
+    mean 1/(1 - p) instead overstated it whenever a revert was likely.
     """
     p_fail = revert_probability(ctx, s)
     n = ctx.max_attempts
@@ -182,67 +178,6 @@ def reprice_cost_usd(ctx: TradeContext, s: float) -> float:
         return ctx.notional_usd * s * ctx.chase_factor
     expected_move = sigma * _norm_pdf(z) / tail
     return ctx.notional_usd * expected_move * ctx.chase_factor
-
-
-def _chase_draw(ctx: TradeContext, s: float, sigma: float, rng: random.Random) -> float:
-    """One adverse move past the tolerance, costed the way `reprice_cost_usd`
-    costs its average: a draw from the normal tail beyond `s`, scaled by the
-    share of the move a trader eats."""
-    if sigma <= 0:
-        return 0.0
-    below = _norm_cdf(s / sigma)
-    if 1.0 - below < 1e-9:
-        return ctx.notional_usd * s * ctx.chase_factor
-    u = min(below + (1.0 - below) * rng.random(), 1.0 - 1e-16)
-    move = sigma * NormalDist().inv_cdf(u)
-    return ctx.notional_usd * move * ctx.chase_factor
-
-
-def simulate_trades(ctx: TradeContext, curve: list["CostPoint"], per_point: int = 3) -> list[dict[str, Any]]:
-    """Individual trades, drawn from the same branches the expected cost weights.
-
-    The cost curve is an average, so it is smooth however uneven the outcomes
-    under it are. Each sample is one trade at one tolerance: it is sandwiched
-    and loses what the bot takes, or it fills first time, or it reverts, chases
-    the move that broke the tolerance and retries until it fills or gives up.
-    These are the same events with the same probabilities `cost_curve`
-    integrates, so the samples average back onto the line; plotted, they show
-    the spread the line is an average of.
-
-    Seeded from the trade and the market but not the tolerance the user picked,
-    so the dots hold still while the slider moves.
-    """
-    sigma = ctx.sigma_over(ctx.exposure_seconds)
-    key = f"{ctx.notional_usd:.2f}|{ctx.pool_tvl_usd:.2f}|{ctx.bot_activity:.6f}|{sigma:.9g}|{ctx.private_relay}"
-    rng = random.Random(zlib.crc32(key.encode()))
-    penalty = ctx.notional_usd * ctx.unfilled_penalty_bps / 10_000.0
-    attempts = max(1, int(round(ctx.max_attempts)))
-
-    samples: list[dict[str, Any]] = []
-    for point in curve:
-        s = point.slippage_bps / 10_000.0
-        for _ in range(per_point):
-            if rng.random() < point.p_attack:
-                cost, outcome = point.attack_loss_usd + ctx.gas_cost_usd, "sandwiched"
-            else:
-                cost, outcome = 0.0, "filled"
-                for attempt in range(attempts):
-                    cost += ctx.gas_cost_usd
-                    if rng.random() >= point.p_revert:
-                        break
-                    outcome = "reverted"
-                    if attempt == 0:
-                        # the model charges one chase, on the revert that starts it
-                        cost += _chase_draw(ctx, s, sigma, rng)
-                else:
-                    cost += penalty
-                    outcome = "unfilled"
-            samples.append({
-                "slippage_bps": round(point.slippage_bps, 2),
-                "cost_usd": round(cost, 4),
-                "outcome": outcome,
-            })
-    return samples
 
 
 def baseline_impact_usd(ctx: TradeContext) -> float:
@@ -340,7 +275,6 @@ class SweetSpot:
     controllable_cost_usd: float       # the part better execution can remove
     at_grid_floor: bool                # optimum pinned to the tightest setting searched
     curve: list[dict[str, float]] = field(default_factory=list)
-    samples: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -395,7 +329,6 @@ def find_sweet_spot(ctx: TradeContext, default_slippage_bps: float = 50.0) -> Sw
             }
             for p in curve
         ],
-        samples=simulate_trades(ctx, curve),
     )
 
 

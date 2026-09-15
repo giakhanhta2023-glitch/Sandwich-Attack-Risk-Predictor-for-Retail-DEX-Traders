@@ -1,17 +1,17 @@
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import {
   Area,
   CartesianGrid,
   ComposedChart,
   Line,
+  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
-  Scatter,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import type { CurvePoint, TradeSample } from '@/api'
+import type { CurvePoint } from '@/api'
 import { usd, bps } from '@/api'
 
 /**
@@ -29,17 +29,12 @@ import { usd, bps } from '@/api'
  * Unavoidable price impact is excluded from the plot. It is a constant in `s`,
  * so including it would only flatten the shape the chart exists to show; it is
  * reported separately underneath instead.
- *
- * The line is an average, and an average is smooth however uneven the trades
- * under it are. The dots are those trades: each is one simulated swap at one
- * tolerance, drawn from the same probabilities the line averages, so they
- * scatter the way real outcomes do and still average back onto it. Nothing is
- * added to the line itself; the roughness shown is the model's own.
  */
 
 interface Props {
   curve: CurvePoint[]
-  samples: TradeSample[]
+  /** What moving from the current tolerance to the recommended one saves, per trade. */
+  savingUsd: number
   baselineUsd: number
   currentBps: number
   recommendedBps: number
@@ -48,7 +43,11 @@ interface Props {
 
 const TICKS = [1, 5, 10, 25, 50, 100, 300, 1000, 2000]
 
-export function CostCurve({ curve, samples, baselineUsd, currentBps, recommendedBps, criticalBps }: Props) {
+export function CostCurve({ curve, savingUsd, baselineUsd, currentBps, recommendedBps, criticalBps }: Props) {
+  // gradient ids must be unique on the page, and useId's colons are not valid in url(#...)
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '')
+  const attackFill = `cc-attack-${uid}`
+  const executionFill = `cc-execution-${uid}`
   const data = useMemo(
     () =>
       curve.map((p) => {
@@ -80,10 +79,21 @@ export function CostCurve({ curve, samples, baselineUsd, currentBps, recommended
 
   return (
     <div>
-      <div className="h-[280px] w-full">
+      <div className="cost-curve h-[300px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 24, left: 4 }}>
-            <CartesianGrid stroke="var(--line)" vertical={false} />
+            <defs>
+              <linearGradient id={attackFill} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style={{ stopColor: 'var(--hot)', stopOpacity: 0.6 }} />
+                <stop offset="100%" style={{ stopColor: 'var(--hot)', stopOpacity: 0.04 }} />
+              </linearGradient>
+              <linearGradient id={executionFill} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" style={{ stopColor: 'var(--info)', stopOpacity: 0.4 }} />
+                <stop offset="100%" style={{ stopColor: 'var(--info)', stopOpacity: 0.03 }} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid stroke="var(--line)" strokeDasharray="2 6" vertical={false} />
 
             <XAxis
               dataKey="slippage_bps"
@@ -103,6 +113,7 @@ export function CostCurve({ curve, samples, baselineUsd, currentBps, recommended
               }}
             />
             <YAxis
+              domain={[0, 'auto']}
               tickFormatter={(v: number) => usd(v, v >= 100 ? 0 : v >= 1 ? 1 : 2)}
               tick={{ fontFamily: 'var(--font-mono)', fontSize: 10, fill: 'var(--ink-faint)' }}
               tickLine={false}
@@ -120,42 +131,60 @@ export function CostCurve({ curve, samples, baselineUsd, currentBps, recommended
 
             {/* execution risk sits under MEV risk; the stack top is the total */}
             <Area
+              className="cc-execution"
               type="linear"
               dataKey="execution"
               stackId="cost"
               stroke="var(--info)"
               strokeWidth={1}
-              fill="var(--info)"
-              fillOpacity={0.14}
-              isAnimationActive={false}
+              fill={`url(#${executionFill})`}
+              animationDuration={700}
+              animationEasing="ease-out"
             />
             <Area
+              className="cc-attack"
               type="linear"
               dataKey="attack"
               stackId="cost"
               stroke="var(--hot)"
-              strokeWidth={1}
-              fill="var(--hot)"
-              fillOpacity={0.16}
-              isAnimationActive={false}
+              strokeWidth={1.5}
+              fill={`url(#${attackFill})`}
+              animationDuration={700}
+              animationEasing="ease-out"
             />
             <Line
+              className="cc-total"
               type="linear"
               dataKey="total"
               stroke="var(--ink)"
-              strokeWidth={1.5}
+              strokeWidth={2}
               dot={false}
-              activeDot={{ r: 3.5, fill: 'var(--ink)' }}
-              isAnimationActive={false}
+              activeDot={{ r: 4, fill: 'var(--ink)', stroke: 'var(--void)', strokeWidth: 2 }}
+              animationDuration={700}
+              animationEasing="ease-out"
             />
 
-            <Scatter
-              data={samples}
-              dataKey="cost_usd"
-              isAnimationActive={false}
-              tooltipType="none"
-              shape={<TradeDot />}
-            />
+            {/* what moving from your tolerance to the recommended one is worth */}
+            {savingUsd >= 0.01 && cur.total > rec.total && (
+              <ReferenceArea
+                x1={Math.min(rec.slippage_bps, cur.slippage_bps)}
+                x2={Math.max(rec.slippage_bps, cur.slippage_bps)}
+                y1={rec.total}
+                y2={cur.total}
+                fill="var(--cool)"
+                fillOpacity={0.07}
+                stroke="var(--cool)"
+                strokeOpacity={0.45}
+                strokeDasharray="3 4"
+                ifOverflow="visible"
+                label={{
+                  value: `you'd save ${usd(savingUsd)} a trade`,
+                  position: 'insideTop',
+                  offset: 8,
+                  style: { fill: 'var(--cool)', fontSize: 11, fontFamily: 'var(--font-mono)', fontWeight: 600 },
+                }}
+              />
+            )}
 
             {/* to the left of this the sandwich cannot pay for its own gas */}
             {showCritical && (
@@ -175,7 +204,7 @@ export function CostCurve({ curve, samples, baselineUsd, currentBps, recommended
               x={cur.slippage_bps}
               stroke="var(--ink-faint)"
               label={{
-                value: 'yours',
+                value: `yours ${usd(cur.total)}`,
                 position: 'insideBottomLeft',
                 style: { fill: 'var(--ink-dim)', fontSize: 9.5, fontFamily: 'var(--font-mono)' },
               }}
@@ -190,7 +219,8 @@ export function CostCurve({ curve, samples, baselineUsd, currentBps, recommended
                 style: { fill: 'var(--cool)', fontSize: 9.5, fontFamily: 'var(--font-mono)' },
               }}
             />
-            <ReferenceDot x={rec.slippage_bps} y={rec.total} />
+            <ReferenceDot x={cur.slippage_bps} y={cur.total} colour="var(--hot)" />
+            <ReferenceDot x={rec.slippage_bps} y={rec.total} colour="var(--cool)" />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -205,41 +235,26 @@ export function CostCurve({ curve, samples, baselineUsd, currentBps, recommended
         <span className="flex items-center gap-1.5">
           <span className="h-px w-4 bg-ink" /> average cost
         </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-1.5 w-1.5 rounded-full bg-ink-faint" /> one simulated trade
-        </span>
+
         <span className="ml-auto">plus {usd(baselineUsd)} unavoidable fee &amp; price impact</span>
       </div>
     </div>
   )
 }
 
-const DOT_COLOUR: Record<TradeSample['outcome'], string> = {
-  sandwiched: 'var(--hot)',
-  reverted: 'var(--info)',
-  unfilled: 'var(--info)',
-  filled: 'var(--ink-faint)',
-}
-
-/** One trade: red if a bot took it, blue if it reverted first, grey if it simply filled. */
-function TradeDot({ cx, cy, payload }: { cx?: number; cy?: number; payload?: TradeSample }) {
-  if (cx == null || cy == null || !payload) return null
-  return <circle cx={cx} cy={cy} r={1.9} fill={DOT_COLOUR[payload.outcome]} fillOpacity={0.55} />
-}
-
 /**
  * Recharts has a ReferenceDot, but it renders under the areas at this stack
  * order; drawing the marker as a tiny overlay keeps it on top of the curve.
  */
-function ReferenceDot({ x, y }: { x: number; y: number }) {
+function ReferenceDot({ x, y, colour }: { x: number; y: number; colour: string }) {
   return (
     <ReferenceLine
       segment={[
         { x, y },
         { x, y },
       ]}
-      stroke="var(--cool)"
-      strokeWidth={7}
+      stroke={colour}
+      strokeWidth={9}
       strokeLinecap="round"
       ifOverflow="visible"
     />

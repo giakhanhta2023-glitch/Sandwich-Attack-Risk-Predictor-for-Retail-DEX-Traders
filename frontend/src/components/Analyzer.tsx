@@ -3,6 +3,7 @@ import { api, usd, compactUsd, pct, bps } from '@/api'
 import type { Analysis, Pool } from '@/api'
 import { Badge, Bar, Disclosure, Panel, Section, Skeleton, Stat } from './primitives'
 import { CostCurve } from './CostCurve'
+import { LivePulse } from './LivePulse'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
@@ -311,12 +312,13 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                 )}
                 <CostCurve
                   curve={result.sweet_spot.curve}
-                  samples={result.sweet_spot.samples ?? []}
+                  savingUsd={result.sweet_spot.savings_vs_current_usd}
                   baselineUsd={result.sweet_spot.baseline_impact_usd}
                   currentBps={result.input.slippage_bps}
                   recommendedBps={result.sweet_spot.slippage_bps}
                   criticalBps={result.economics.critical_slippage_bps}
                 />
+                <LivePulse />
               </Panel>
 
               <Recommendations result={result} />

@@ -266,3 +266,11 @@
 .pixel {
   image-rendering: pixelated;
 }
+
+/* Cost curve: the sandwich edge and the total line glow; the second series stays flat. */
+.cost-curve .cc-attack .recharts-area-curve {
+  filter: drop-shadow(0 0 5px rgb(239 68 68 / 0.6));
+}
+.cost-curve .cc-total .recharts-line-curve {
+  filter: drop-shadow(0 0 6px rgb(255 255 255 / 0.35));
+}

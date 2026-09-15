@@ -533,7 +533,6 @@ def analyze(req: AnalyzeRequest, background: BackgroundTasks) -> dict[str, Any]:
                 current_cost["expected_cost_usd"] - spot.expected_cost_usd, 2
             ),
             "curve": spot.curve,
-            "samples": spot.samples,
         },
         "split": {
             "recommended_chunks": best_split.chunks,

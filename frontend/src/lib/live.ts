@@ -105,12 +105,25 @@ export interface LivePool {
   est_tvl_usd: number | null
 }
 
+/** One hour of scanning: how many swaps were read and how many sandwiches were caught in them. */
+export interface LiveHour {
+  hour: string
+  scans: number
+  swaps: number
+  sandwiches: number
+  victims: number
+  profit_usd: number
+  /** Null when no swaps were read that hour. */
+  per_1k_swaps: number | null
+}
+
 export const live = {
   summary: () => rest<LiveSummary[]>('live_summary?select=*').then((rows) => rows[0] ?? null),
   runs: (limit = 40) => rest<IngestRun[]>(`ingest_runs?select=*&order=started_at.desc&limit=${limit}`),
   sandwiches: (limit = 15) =>
     rest<LiveSandwich[]>(`sandwich_events?select=*&order=detected_at.desc&limit=${limit}`),
   // a rate on a handful of swaps is noise, so require some volume and a detection
+  hourly: () => rest<LiveHour[]>('live_hourly?select=*&order=hour.asc'),
   pools: (limit = 8) =>
     rest<LivePool[]>(
       `live_pool_risk?select=*&swaps=gte.100&sandwiches=gt.0&order=attack_rate.desc&limit=${limit}`,

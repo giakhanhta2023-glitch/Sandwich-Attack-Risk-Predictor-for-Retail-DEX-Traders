@@ -40,13 +40,6 @@ export interface CurvePoint {
   attacker_profit_usd: number
 }
 
-/** One simulated trade at one tolerance: what it cost, and which way it went. */
-export interface TradeSample {
-  slippage_bps: number
-  cost_usd: number
-  outcome: 'sandwiched' | 'filled' | 'reverted' | 'unfilled'
-}
-
 /** What the model trained on real Solana mainnet swaps says about this trade. */
 export interface LiveMarket {
   p_attack: number
@@ -187,7 +180,6 @@ export interface Analysis {
     worst_case_loss_usd: number
     savings_vs_current_usd: number
     curve: CurvePoint[]
-    samples: TradeSample[]
   }
   split: {
     recommended_chunks: number
