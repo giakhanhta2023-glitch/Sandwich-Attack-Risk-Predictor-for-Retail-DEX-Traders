@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, usd, compactUsd, pct, bps } from '@/api'
 import type { Analysis, Pool } from '@/api'
-import { Badge, Bar, Disclosure, Panel, Section, Skeleton, Stat } from './primitives'
+import { Badge, Bar, Panel, Section, Skeleton, Stat } from './primitives'
 import { CostCurve } from './CostCurve'
 import { LivePulse } from './LivePulse'
 import { Button } from '@/components/ui/button'
@@ -248,22 +248,6 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
             </div>
           </div>
 
-          {result && (
-            <>
-              <Separator className="my-3 bg-line" />
-              <Disclosure label="Execution conditions" hint="Gas, tips and how long you are exposed">
-                <div className="space-y-2 text-[0.6875rem] text-ink-faint">
-                  <Row label={result.market.cost_label} value={usd(result.market.attack_cost_usd)} />
-                  <Row label="Your gas per attempt" value={usd(result.market.user_gas_usd)} />
-                  <Row
-                    label="Exposure window"
-                    value={`${(result.market.block_time_s * result.market.inclusion_blocks).toFixed(1)}s`}
-                  />
-                  {result.market.gas_gwei && <Row label="Base fee" value={`${result.market.gas_gwei} gwei`} />}
-                </div>
-              </Disclosure>
-            </>
-          )}
         </Panel>
 
         {/* ---------------- results ---------------- */}
@@ -303,13 +287,6 @@ export function Analyzer({ pools }: { pools: Pool[] }) {
                     </div>
                   </div>
                 </div>
-                {result.sweet_spot.at_grid_floor && (
-                  <p className="mb-3 border-l-2 border-l-warn bg-transparent px-3 py-1.5 text-[0.6875rem] leading-relaxed text-warn">
-                    Every tolerance in range is worth attacking here, so the objective just wants the smallest
-                    one. This is a floor, not a fine-tuned number. The real levers are private routing and
-                    splitting the order.
-                  </p>
-                )}
                 <CostCurve
                   curve={result.sweet_spot.curve}
                   savingUsd={result.sweet_spot.savings_vs_current_usd}
