@@ -93,9 +93,7 @@ consistent with each other.
 
 ### Order splitting
 
-A searcher's profit falls faster than trade size, so `n` small victims can each be worth
-less than the bundle costs to run. Splitting is not free: you pay gas per chunk and hold
-market risk for the duration, both of which are charged in the objective.
+Order splitting chops one large trade into `n` tiny chunks so the profit a bot could steal from any single piece drops below the gas cost required to attack it. The algorithm calculates the exact number of chunks needed to balance saved bot losses against extra network gas fees and market delays.
 
 **Live:** https://sandwich-attack-risk-predictor-for.vercel.app
 
