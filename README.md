@@ -186,18 +186,25 @@ switch to Helius within a few minutes, and `/live` shows the provider in use.
 The interface is a trading surface, not a landing page, and the CSS layer
 enforces that rather than leaving it to discipline:
 
-- **Separation is a 1px border.** No shadow, gradient, blur or raised card.
-  Hierarchy comes from the border plus the fill step between `#000000` and
-  `#0c0c0e`.
-- **Two functional hues.** Emerald `#10b981` for safe/optimal, crimson
-  `#ef4444` for risk/loss, carried on the numeral or a 2px inset rule, never
-  as a tint behind a figure, which only makes the figure harder to read.
-  A chart's second series is neutral grey so red always and only means MEV.
+- **The ground is charcoal**, `#131315` lifting to `#2a2b2f` under a slow
+  radial light, so a panel reads as a card sitting in that light rather than a
+  box floating on a void. Separation is still a 1px hairline plus the fill step.
+- **Brand colour never touches a figure.** Violet `#8e6fd0` into orchid
+  `#f3b6fb` carries the hero headline and the frame around it, and stops there,
+  so no reader has to work out whether a colour means something.
+- **Two functional hues.** Sage `#a3b565` for safe/optimal, crimson `#f2545b`
+  for risk/loss, carried on the numeral, never as a tint behind a figure, which
+  only makes the figure harder to read. A chart's second series is neutral grey
+  so red always and only means MEV.
 - **Every figure is monospaced** and tabular, with slashed zero, so digits align
   down a column. That includes chart axis ticks, and Recharts' off-screen
   measurement span is pinned to the same font so label placement is measured in
   the font it renders in.
-- **2px radius, everywhere.** No pills.
+- **One shape is loud.** The hero headline sits in a frame with its corners cut
+  and an orchid dot on each flank. It appears once. Everything else is a quiet
+  10px card.
+- **Three faces, one job each.** Sora sets headlines, Manrope sets prose,
+  JetBrains Mono sets every number.
 - **Motion on state change only.** Entrance animations delay data.
 
 Progressive disclosure sits on top of this: the decision (risk, sweet spot,

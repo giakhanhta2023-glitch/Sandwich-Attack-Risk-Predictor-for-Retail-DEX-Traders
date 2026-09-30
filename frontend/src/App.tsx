@@ -166,31 +166,54 @@ function SandwichMark() {
 function Hero() {
   return (
     <section id="top" className="relative z-10 mx-auto w-full max-w-[1600px] px-6 pt-8 pb-6">
-      <div className="grid items-center gap-8 lg:grid-cols-[1fr_1fr]">
+      <div className="mb-5 flex justify-center">
+        <Badge tone="hot">MEV · Solana mainnet</Badge>
+      </div>
+
+      {/* The signature: the headline held in a frame with its corners cut and a
+          dot on each flank. It is the one loud shape on the site. */}
+      <div className="relative">
+        <div className="chamfer chamfer-frame">
+          <div className="chamfer px-6 py-11 text-center md:px-16 md:py-14">
+            <h1 className="mx-auto max-w-[19ch] text-[clamp(2rem,5vw,4.1rem)] leading-[1.0] font-extrabold tracking-[-0.035em]">
+              {/* colour splits on the phrase, not on the line, so a wrap cannot
+                  restart the gradient mid-sentence */}
+              <span className="display-gradient">Your slippage setting</span>{' '}
+              <span className="text-ink">is a bot's budget.</span>
+            </h1>
+          </div>
+        </div>
+        <span
+          aria-hidden
+          className="absolute top-1/2 left-0 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-orchid-bright"
+        />
+        <span
+          aria-hidden
+          className="absolute top-1/2 right-0 size-2.5 translate-x-1/2 -translate-y-1/2 rounded-full bg-orchid-bright"
+        />
+      </div>
+
+      <div className="mt-9 grid items-start gap-8 lg:grid-cols-[1fr_1.05fr]">
         <div>
-          <Badge tone="hot">MEV · Solana mainnet</Badge>
-
-          <h1 className="mt-3 text-[1.75rem] leading-[1.08] font-semibold tracking-[-0.025em] md:text-[2.25rem]">
-            Your slippage setting
-            <br />
-            <span className="text-hot">is a bot's budget.</span>
-          </h1>
-
-          <p className="mt-3 max-w-xl text-[0.8125rem] leading-relaxed text-ink-dim">
+          <p className="max-w-xl text-[0.875rem] leading-relaxed text-ink-dim">
             When you set a slippage tolerance, you publish the exact amount a searcher is allowed to take from
             you, and they will take almost all of it. This tool scores that risk from chain data, then solves for
             the tolerance that costs you the least.
           </p>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button asChild size="sm" className="h-8 rounded-sm px-4 text-[0.75rem] font-medium">
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            <Button
+              asChild
+              size="sm"
+              className="h-9 rounded-md border-0 bg-linear-to-r from-violet to-orchid px-5 text-[0.8125rem] font-semibold text-void hover:opacity-90"
+            >
               <a href="#analyzer">Analyse a trade</a>
             </Button>
             <Button
               asChild
               size="sm"
               variant="outline"
-              className="h-8 rounded-sm border-line bg-transparent px-4 text-[0.75rem] font-medium text-ink-dim hover:bg-raised hover:text-ink"
+              className="h-9 rounded-md border-line bg-transparent px-5 text-[0.8125rem] font-medium text-ink-dim hover:bg-raised hover:text-ink"
             >
               <Link to="/live">See live chain data</Link>
             </Button>
