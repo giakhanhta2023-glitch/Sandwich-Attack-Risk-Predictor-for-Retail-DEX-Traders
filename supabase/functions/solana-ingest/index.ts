@@ -71,9 +71,20 @@ const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const USDT = "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB";
 const QUOTE_SYMBOL: Record<string, string> = { [WSOL]: "SOL", [USDC]: "USDC", [USDT]: "USDT" };
 
+// The key this writes with. Supabase injects SUPABASE_SERVICE_ROLE_KEY on its
+// own, but from 2026-09-23 the injected token started coming back from the Data
+// API as "JWT issued at future": its issued-at ran ahead of the clock the API
+// checks it against, and every write was refused while the project's own
+// published key kept working. SCANNER_WRITE_KEY, set as a function secret, takes
+// precedence so the scanner runs on a key with a known issue time. It falls back
+// to the injected one, so nothing breaks if the secret is not set.
+const WRITE_KEY = (Deno.env.get("SCANNER_WRITE_KEY") ?? "").trim() ||
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const KEY_SOURCE = Deno.env.get("SCANNER_WRITE_KEY") ? "scanner secret" : "injected";
+
 const db = createClient(
   Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  WRITE_KEY,
   { auth: { persistSession: false } },
 );
 
@@ -371,7 +382,9 @@ Deno.serve(async () => {
   const t0 = performance.now();
   const deadline = Date.now() + RUN_BUDGET_MS;
   const { data: runRow, error: runErr } = await db.from("ingest_runs").insert({ provider: PROVIDER }).select("id").single();
-  if (runErr || !runRow) return json({ error: `could not open run: ${runErr?.message}` }, 500);
+  if (runErr || !runRow) {
+    return json({ error: `could not open run with the ${KEY_SOURCE} key: ${runErr?.message}` }, 500);
+  }
   const runId: number = runRow.id;
 
   const stats = { txs: 0, dexTxs: 0 };
